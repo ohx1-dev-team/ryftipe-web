@@ -6,11 +6,16 @@ import {dirname,resolve} from 'node:path';
 import {chromium} from 'playwright';
 // Browser-level sandbox integration smoke. Fixtures are local; no YouTube claim.
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..','public');
-const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js']]);
+const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js'],['/rte.js','rte.js'],['/rte-css.js','rte-css.js'],['/rte-layout.js','rte-layout.js'],['/rte-tracks.js','rte-tracks.js'],['/rte-forms.js','rte-forms.js'],['/rte-media.js','rte-media.js']]);
 const server=http.createServer(async(req,res)=>{
  if(req.url==='/api/rte/data?url=https%3A%2F%2Fexample.org%2Ftest.json'){
   res.writeHead(200,{'Content-Type':'application/json'});
   res.end(JSON.stringify({url:'https://example.org/test.json',type:'application/json',body:'{"hello":"network-ok"}'}));return;
+ }
+ if(req.url?.startsWith('/api/rte/document?')){
+  res.writeHead(200,{'Content-Type':'application/json'});
+  res.end(JSON.stringify({url:'https://example.org/demo',title:'RTE Paint Fixture',engine:'RTE/test',css:'body{background-color:#f0f0f2}main{max-width:640px;margin:30px auto;padding:20px;background-color:#fff}h1{font-size:32px}',scripts:[],dom:{tag:'document',children:[{tag:'body',attrs:{},children:[{tag:'main',attrs:{},children:[{tag:'h1',attrs:{},children:[{text:'RTE Paint Fixture'}]},{tag:'p',attrs:{},children:[{text:'Canvas performance test.'}]}]}]}]}}));
+  return;
  }
  const file=paths.get(req.url);
  if(file){
@@ -57,6 +62,25 @@ try{
  console.log('PASS: sandbox, import-free ES module, DOM mutation, open Shadow DOM and same-origin JSON fetch');
  console.log(JSON.stringify(outcome.metrics));
  await page.evaluate(()=>window.__rte.dispose());
+ const painted=await page.evaluate(async()=>{
+  const box=document.createElement('div');box.style.cssText='position:relative;width:860px;height:500px';
+  const canvas=document.createElement('canvas');canvas.style.cssText='display:block;width:860px;height:500px';
+  box.append(canvas);document.body.append(box);
+  const {createRTE}=await import('/rte.js');
+  const rte=createRTE(canvas,{onNavigate(){},onLocation(){},onError(message){throw new Error(message);},onStats(){}});
+  const ok=await rte.navigate('https://example.org/demo');
+  const first={...rte.stats};
+  canvas.dispatchEvent(new WheelEvent('wheel',{deltaY:100,cancelable:true}));
+  await new Promise(resolve=>setTimeout(resolve,120));
+  const second={...rte.stats};rte.dispose();
+  return {ok,first,second};
+ });
+ assert.equal(painted.ok,true);
+ assert.ok(painted.first.commands>=2,'Renderer must produce paint commands');
+ assert.ok(painted.first.paintCount>=1,'Renderer must have painted a frame');
+ assert.ok(Number.isFinite(painted.first.paintMs),'Canvas paint must be measured');
+ assert.ok(painted.second.paintCount>painted.first.paintCount,'Wheel input should queue a new animation frame');
+ console.log('PASS: RTE canvas paint, measured costs and scheduled wheel repaint',JSON.stringify(painted.second));
 }finally{
  await browser?.close();
  await new Promise(resolve=>server.close(resolve));

@@ -15,11 +15,11 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  let url='',doc=null,rules=[],cssSource='',scroll=0,commands=[],hits=[],height=0,active=false,generation=0,history=[],position=-1;
  let pageBackground='#fff',lastWidth=0,zoom=1,lastFindIndex=-1;
  let scriptRuntime=null,scriptStatus='off',lastScriptMetrics={};
- const images=new Map();let repaintTimer=0;
+ const images=new Map();let repaintTimer=0,paintRaf=0,paintCostMs=0,averagePaintMs=0,paintCount=0;
  function style(n,parent,ancestors){return computeStyle(n,parent,rules,ancestors);}
  function font(s){const z=Math.min(52,Math.max(10,px(s['font-size'],16)));return {size:z,value:(s['font-weight']==='bold'||parseInt(s['font-weight'])>=600?'bold ':'')+z+'px '+(s['font-family']==='monospace'?'monospace':'Arial')};}
  function absolute(raw){try{const u=new URL(raw,url);return /^https?:$/.test(u.protocol)?u.href:null;}catch{return null;}}
- function image(raw){if(!imagesEnabled())return null;const target=absolute(raw);if(!target)return null;if(!images.has(target)){images.set(target,{status:'loading'});fetch('/api/rte/image?url='+encodeURIComponent(target)).then(r=>{if(!r.ok)throw Error();return r.blob();}).then(createImageBitmap).then(b=>{images.set(target,{status:'ready',bitmap:b});paint();}).catch(()=>images.set(target,{status:'error'}));}return target;}
+ function image(raw){if(!imagesEnabled())return null;const target=absolute(raw);if(!target)return null;if(!images.has(target)){images.set(target,{status:'loading'});fetch('/api/rte/image?url='+encodeURIComponent(target)).then(r=>{if(!r.ok)throw Error();return r.blob();}).then(createImageBitmap).then(b=>{images.set(target,{status:'ready',bitmap:b});schedulePaint();}).catch(()=>images.set(target,{status:'error'}));}return target;}
  function drawText(text,s,x,y,width,href,nodeId){
   const f=font(s);c.font=f.value;const line=f.size*1.32;let xx=x,yy=y;
   for(const word of String(text).replace(/\s+/g,' ').split(/(\s+)/)){
@@ -73,8 +73,10 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
   scroll=Math.min(scroll,Math.max(0,height-canvas.clientHeight/zoom));
   paint();
  }
+ function schedulePaint(){if(!active||paintRaf)return;paintRaf=requestAnimationFrame(()=>{paintRaf=0;paint();});}
  function paint(){
   if(!active)return;
+  const started=performance.now();
   const w=Math.max(320,Math.round(canvas.clientWidth)),h=Math.max(240,Math.round(canvas.clientHeight));
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
   c.fillStyle=pageBackground;c.fillRect(0,0,w,h);c.save();c.scale(zoom,zoom);c.translate(0,-scroll);
@@ -86,11 +88,13 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
   }
   c.restore();
   mediaLayer.sync(commands,{scroll,zoom,viewportWidth:canvas.clientWidth,viewportHeight:canvas.clientHeight});
-  onStats?.({commands:commands.length,height});
+  paintCostMs=performance.now()-started;paintCount++;
+  averagePaintMs=paintCount===1?paintCostMs:averagePaintMs*.9+paintCostMs*.1;
+  onStats?.({commands:commands.length,height,paintMs:paintCostMs,averagePaintMs,paintCount});
  }
  function show(){active=true;canvas.hidden=false;mediaLayer.show();layout();}
- function hide(){active=false;canvas.hidden=true;mediaLayer.hide();scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='paused';}
- function dispose(){scriptRuntime?.dispose();scriptRuntime=null;mediaLayer.dispose();active=false;}
+ function hide(){active=false;if(paintRaf)cancelAnimationFrame(paintRaf);paintRaf=0;canvas.hidden=true;mediaLayer.hide();scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='paused';}
+ function dispose(){if(paintRaf)cancelAnimationFrame(paintRaf);paintRaf=0;scriptRuntime?.dispose();scriptRuntime=null;mediaLayer.dispose();active=false;}
  async function navigate(target,{replace=false}={}){
   const token=++generation;onLocation?.({url:target,loading:true});
   try{const r=await fetch('/api/rte/document?url='+encodeURIComponent(target),{cache:'no-store'}),page=await r.json();if(token!==generation)return false;if(!r.ok)throw Error(page.error||'Page load failed');
@@ -123,14 +127,14 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
   const index=next<0?(direction>=0?0:found.length-1):next;
   lastFindIndex=found[index].i;
   scroll=Math.min(Math.max(0,height-canvas.clientHeight/zoom),Math.max(0,found[index].cmd.y-80));
-  paint();return{found:index+1,total:found.length};
+  schedulePaint();return{found:index+1,total:found.length};
  }
  function back(){if(position>0){position--;navigate(history[position],{replace:true});}}
  function forward(){if(position<history.length-1){position++;navigate(history[position],{replace:true});}}
  function reload(){if(url)navigate(url,{replace:true});}
- canvas.addEventListener('wheel',e=>{if(!active)return;e.preventDefault();scroll=Math.min(Math.max(0,height-canvas.clientHeight/zoom),Math.max(0,scroll+e.deltaY/zoom));paint();},{passive:false});
+ canvas.addEventListener('wheel',e=>{if(!active)return;e.preventDefault();scroll=Math.min(Math.max(0,height-canvas.clientHeight/zoom),Math.max(0,scroll+e.deltaY/zoom));schedulePaint();},{passive:false});
  canvas.addEventListener('click',e=>{if(!active)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*canvas.width/zoom,y=(e.clientY-r.top)/r.height*canvas.height/zoom+scroll;const v=hits.findLast(v=>x>=v.x&&x<v.x+v.w&&y>=v.y&&y<v.y+v.h);if(!v)return;
   if(scriptRuntime?.active&&v.nodeId){scriptRuntime.event(v.nodeId);if(!v.url&&!v.submit&&!v.input)return;}
   if(v.url)onNavigate?.(v.url);else if(v.submit&&v.form){try{onNavigate?.(getFormURL(url,v.form,v.submit));}catch(err){onError?.(err.message);}}else if(v.input){const answer=prompt('Enter value',v.input.attrs.value||'');if(answer!==null){v.input.attrs.value=answer;layout();}}});
- return {navigate,back,forward,reload,show,hide,dispose,resize:layout,setZoom,findText,get zoom(){return zoom;},get active(){return active;},get url(){return url;},get scriptStatus(){return scriptStatus;},get stats(){return {commands:commands.length,documentHeight:height,zoom,scriptStatus,scriptMetrics:scriptRuntime?.metrics||lastScriptMetrics};}};
+ return {navigate,back,forward,reload,show,hide,dispose,resize:layout,setZoom,findText,get zoom(){return zoom;},get active(){return active;},get url(){return url;},get scriptStatus(){return scriptStatus;},get stats(){return {commands:commands.length,documentHeight:height,zoom,scriptStatus,paintMs:paintCostMs,averagePaintMs,paintCount,scriptMetrics:scriptRuntime?.metrics||lastScriptMetrics};}};
 }

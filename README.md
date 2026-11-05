@@ -25,6 +25,14 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.14.0 — RTE renderer paint scheduling and measurements
+
+- RTE now schedules wheel-scroll and image-load repaints through `requestAnimationFrame`, avoiding redundant synchronous canvas paints.
+- Measured last and moving-average canvas paint costs plus paint counts are available from `ryftipe://engine`.
+- The timings measure the **RTE Canvas paint phase only**. They are not YouTube video FPS or page-load benchmarks, and do not prove browser-speed parity.
+- Preserves previous native media, Shadow DOM snapshots, script-module experiment and same-origin GET data bridge.
+- **YouTube remains unsupported** in this engine version.
+
 ## v0.13.0 — Open Shadow DOM support
 
 - The experimental RTE script sandbox now serializes **open Shadow DOM trees**, making custom-element content visible in the RTE canvas snapshot renderer.
