@@ -67,7 +67,7 @@ window.addEventListener('message',e=>{
  if(!active||m.token!==token)return;
  if(m.action==='fetch-result'){const settle=pendingFetch.get(Number(m.id));if(settle){pendingFetch.delete(Number(m.id));settle(m);}return;}
  if(m.action==='run'){
-  if(typeof m.code!=='string'||m.code.length>180000)return;
+  if(m.scriptType!=='module-graph'&&(typeof m.code!=='string'||m.code.length>180000))return;
   if(m.scriptType==='module-graph'){
    const blobURLs=new Map();
    try{

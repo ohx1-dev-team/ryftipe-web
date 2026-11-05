@@ -4,7 +4,7 @@ import {allowedPageRequest,containsModuleImports} from '/rte-platform.js';
 export function createScriptRuntime({onSnapshot,onError}){
  let iframe=null,token='',listener=null,readyResolver=null,executionResolver=null,stopped=false,currentPage='';
  const MAX_SCRIPTS=20;
- let telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0,moduleGraphs:0,moduleDependencies:0,moduleGraphs:0,moduleDependencies:0};
+ let telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0,moduleGraphs:0,moduleDependencies:0};
  function release(){
   stopped=true;if(listener)window.removeEventListener('message',listener);
   iframe?.remove();iframe=null;listener=null;
@@ -15,7 +15,7 @@ export function createScriptRuntime({onSnapshot,onError}){
   if(iframe?.contentWindow)iframe.contentWindow.postMessage({...other,type:'rte-command',token,action},'*');
  }
  async function load(page){
-  telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0};
+  telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0,moduleGraphs:0,moduleDependencies:0};
   release();stopped=false;token=crypto.randomUUID();currentPage=page.url;
   iframe=document.createElement('iframe');
   iframe.setAttribute('sandbox','allow-scripts');
