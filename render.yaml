@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: ryftipe
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: RYFTIPE_PASSWORD
+        sync: false
