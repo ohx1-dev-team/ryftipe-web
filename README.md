@@ -25,6 +25,14 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.15.0 — Real YouTube compatibility probe
+
+- Added a **real end-to-end headless Chromium test of Ryftipe Web in RTE mode navigating to an actual YouTube watch page**. It checks whether a locally rendered native video exists and whether its playback time advances.
+- The probe is **informational and nonblocking**: failed YouTube compatibility is logged as `YOUTUBE_RTE_PROBE` with status and diagnostics; it does not falsely label an incomplete custom engine as YouTube-ready or prevent releases of unrelated fixes.
+- Run manually after dependencies are installed with `npm run test:youtube`; GitHub Actions also runs it on each release build.
+- Expect **YouTube NOT PLAYABLE in RTE** until modern module imports, browser APIs, Web Components layout and the adaptive media pipeline are complete.
+- This is a test harness, **not** the finished YouTube implementation or evidence of normal-browser speed.
+
 ## v0.14.0 — RTE renderer paint scheduling and measurements
 
 - RTE now schedules wheel-scroll and image-load repaints through `requestAnimationFrame`, avoiding redundant synchronous canvas paints.

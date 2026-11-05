@@ -1,12 +1,13 @@
 {
   "name": "ryftipe-web",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.js",
     "postinstall": "playwright install chromium",
-    "test": "node --test"
+    "test": "node --test",
+    "test:youtube": "node tests/youtube-live.mjs"
   },
   "engines": {
     "node": ">=22"

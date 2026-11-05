@@ -30,6 +30,9 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Browser-level RTE smoke test
         run: node tests/browser-smoke.mjs
+      - name: Real YouTube RTE compatibility probe (informational)
+        continue-on-error: true
+        run: node tests/youtube-live.mjs
       - name: Read version
         id: version
         run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
