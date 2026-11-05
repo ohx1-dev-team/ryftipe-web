@@ -1,2 +1,2 @@
-# ryftipe
-in honor of Ryftiy____
+# Ryftipe
+Full standalone browser running inside a browser.
