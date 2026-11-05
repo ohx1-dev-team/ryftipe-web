@@ -29,6 +29,8 @@ try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox']});
  const page=await browser.newPage();
  page.on('pageerror',e=>console.error('Browser page error:',e.message));
+ page.on('console',m=>console.log('Browser console',m.type(),m.text()));
+ page.on('request',req=>{if(req.url().includes('/api/rte/'))console.log('RTE browser request',req.url());});
  await page.goto(base,{waitUntil:'load'});
  const result=await page.evaluate(async()=>{
   const {createScriptRuntime}=await import('/rte-runtime.js');
@@ -45,8 +47,10 @@ try{
   const loaded=await runtime.load(data);
   return {loaded,metrics:runtime.metrics};
  });
+ console.log('RTE runtime after load:',JSON.stringify(result));
+ console.log('RTE snapshot sample:',JSON.stringify(await page.evaluate(()=>window.__snapshots?.slice(-5))));
  assert.equal(result.loaded,true,'The sandbox must finish loading');
- await page.waitForFunction(()=>window.__snapshots?.some(s=>s.includes('network-ok')),null,{timeout:18000});
+ await page.waitForFunction(()=>window.__snapshots?.some(s=>s.includes('network-ok')),null,{timeout:7000});
  const outcome=await page.evaluate(()=>({snapshots:window.__snapshots.slice(-3),errors:window.__errors,metrics:window.__rte.metrics}));
  assert.equal(outcome.metrics.executed,3,'Classic and module scripts must execute');
  assert.ok(outcome.metrics.networkRequests>=1,'The fetch bridge should receive a request');
