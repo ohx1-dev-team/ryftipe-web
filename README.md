@@ -25,6 +25,19 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.10.0 — RTE compatibility and browser tools capstone
+
+- Experimental **Flexbox row and Grid track sizing**, including fractional columns, \`repeat(N, ...)\`, basic gaps and simple flex-grow. These are **subsets**, not CSS standards compliance; wrapping, intrinsic sizes, alignment and complex layouts remain incomplete.
+- User-initiated **GET HTML forms** with URL query encoding, input prompts, checkbox/radio and select-value serialization. POST, uploads and advanced form validation remain unsupported.
+- **RTE page zoom** from 50% to 200% with toolbar controls and Ctrl+Plus/Minus/0.
+- **Find in Page (Ctrl+F)** searches currently painted text tokens and scrolls to matches. It does not yet search across multiple tokens or remote Chromium websites.
+- **\`ryftipe://engine\` diagnostics** for draw-command count, page height, current URL, zoom, scripting status and honest capability/limitation information.
+- Keeps homepage-on-launch, flags, bookmarks shelf, search preferences and Chromium fallback.
+- Additional deterministic tests for CSS track sizing, forms and layout behavior.
+- **YouTube remains unsupported in RTE:** media playback, modules, advanced DOM APIs and WebGL are not available. This release does not claim otherwise.
+- Network request filtering remains best effort and is not a security guarantee for public deployments; secure network-layer egress restrictions are recommended.
+- No accounts/PostgreSQL introduced.
+
 ## v0.9.0 — Bookmarks bar and RTE layout repair
 
 - Persistent bookmark shelf below the address bar. Star button saves the current website, saved sites open on click, and the trailing menu opens bookmark management.

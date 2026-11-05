@@ -1,4 +1,5 @@
 import {computeStyle,length as cssLength} from './rte-css.js';
+import {cssPixels,gapPixels,gridColumns,distributeTracks,trackPositions} from './rte-tracks.js';
 
 // RTE block/inline layout engine. Produces deterministic draw commands; canvas paints them.
 const BLOCK=new Set('html body main section article nav header footer div p h1 h2 h3 h4 h5 h6 ul ol li blockquote pre form figure figcaption table tr td th details summary address'.split(' '));
@@ -68,20 +69,21 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
    for(const part of item.items){
     if(!part.token.trim())continue;
     const px=x+Math.max(0,align)+part.x;
-    commands.push({kind:'text',text:part.token,x:px,y:cursorY+(item.height-part.font.line)/2,h:part.font.line,font:part.font.value,color:part.style.color||DEFAULT.color});
+    commands.push({kind:'text',text:part.token,x:px,y:cursorY+(item.height-part.font.line)/2,h:part.font.line,font:part.font.value,color:part.style.color||DEFAULT.color,underline:part.style['text-decoration']==='underline'||part.style['text-decoration-line']==='underline'});
     if(part.href)hits.push({x:px,y:cursorY,w:part.width,h:item.height,url:part.href,nodeId:part.nodeId});
    }
    cursorY+=item.height;
   }
   return cursorY;
  }
- function paintNode(n,parent,x,y,w,ancestors=[],depth=0,link=null,nodeId=null){
+ function paintNode(n,parent,x,y,w,ancestors=[],depth=0,link=null,nodeId=null,formNode=null){
   if(++count>12000||depth>65)return y;
   if(Object.hasOwn(n,'text'))return paintLines([{text:n.text,style:parent,href:link,nodeId}],x,y,w,parent['text-align']);
   if(OMIT.has(n.tag))return y;
   const s=computeStyle(n,parent,rules,ancestors);
   if(s.display==='none'||s.visibility==='hidden')return y;
   if(Number.isFinite(n.rteId))nodeId=n.rteId;
+  if(n.tag==='form')formNode=n;
   const fs=fontStyle(s).size;
   const margin=num(s.margin,0,w,fs),pad=num(s.padding,0,w,fs);
   const mt=num(s['margin-top'],margin,w,fs),mb=num(s['margin-bottom'],margin,w,fs);
@@ -95,8 +97,14 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
   const left=x+(centered?Math.max(0,(w-inside-pl-pr)/2):ml);
   const boxY=y+mt;let cursorY=boxY+pt;
   const background=s['background-color']||null;
-  const bg=background&&background!=='transparent'?{kind:'rect',x:left,y:boxY,w:inside+pl+pr,h:0,color:background}:null;
+  const borderMatch=String(s.border||'').match(/([\d.]+)px\s+(?:solid|dashed)\s+([^\s]+)/);
+  const borderWidth=Math.max(0,Math.min(12,num(s['border-width'],borderMatch?Number(borderMatch[1]):0,w,fs)));
+  const borderColor=s['border-color']||borderMatch?.[2]||'#cbd5e1';
+  const radius=Math.max(0,Math.min(30,num(s['border-radius'],0,w,fs)));
+  const bg=background&&background!=='transparent'?{kind:'rect',x:left,y:boxY,w:inside+pl+pr,h:0,color:background,radius}:null;
+  const border=borderWidth?{kind:'border',x:left,y:boxY,w:inside+pl+pr,h:0,color:borderColor,lineWidth:borderWidth,radius}:null;
   if(bg)commands.push(bg);
+  if(border)commands.push(border);
   if(n.tag==='br')return cursorY+fs*1.3;
   if(n.tag==='hr'){commands.push({kind:'rect',x:left,y:cursorY,w:inside,h:1,color:'#c6cfdd'});return cursorY+15+mb;}
   if(n.tag==='img'){
@@ -110,10 +118,41 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
    const inputW=Math.min(inside,360),label=n.attrs?.placeholder||n.attrs?.value||(n.tag==='button'?'Submit':'Text input');
    commands.push({kind:'rect',x:left+pl,y:cursorY,w:inputW,h:36,color:'#e5ebf4'});
    paintLines([{text:label,style:{...s,color:'#31435c','font-size':'14px'}}],left+pl+8,cursorY+7,inputW-16);
-   hits.push({x:left+pl,y:cursorY,w:inputW,h:36,input:n.tag==='input'?n:null,nodeId});
+   hits.push({x:left+pl,y:cursorY,w:inputW,h:36,input:n.tag==='input'||n.tag==='textarea'?n:null,submit:n.tag==='button'?n:null,form:formNode,nodeId});
    return cursorY+44+pb+mb;
   }
   if(n.tag==='li')commands.push({kind:'text',text:'•',x:left+pl-14,y:cursorY,h:fs*1.3,font:fs+'px Arial',color:s.color||DEFAULT.color});
+  // Simple flex/grid row layout for navigation bars, cards and responsive columns.
+  // Rows do not yet support complete min-content, wrapping, align-content or subgrid.
+  const children=(n.children||[]).filter(child=>Object.hasOwn(child,'text')||!OMIT.has(child.tag));
+  if((s.display==='flex'||s.display==='inline-flex'||s.display==='grid')&&children.length){
+   const nonText=children.filter(child=>!Object.hasOwn(child,'text'));
+   if(nonText.length&&nonText.length===children.length&&s['flex-direction']!=='column'){
+    const gap=gapPixels(s,inside,fs);
+    const grid=s.display==='grid';
+    const template=s['grid-template-columns']||'1fr 1fr';
+    const columns=grid?gridColumns(template,Math.max(50,inside-gap)):null;
+    const childStyles=nonText.map(child=>computeStyle(child,s,rules,[...ancestors,n]));
+    const basis=childStyles.map(st=>cssPixels(st['flex-basis']||st.width,inside,fs));
+    const growth=childStyles.map(st=>Number(st['flex-grow']||0));
+    const tracks=grid?columns:distributeTracks(nonText.length,inside,{display:'flex',gap,widths:basis,grow:growth});
+    const offsets=trackPositions(tracks,gap);
+    let rowTop=cursorY,rowBottom=cursorY;
+    for(let i=0;i<nonText.length;i++){
+     if(grid&&i>0&&i%tracks.length===0){rowTop=rowBottom;}
+     const col=grid?i%tracks.length:i;
+     const child=nonText[i],st=childStyles[i];
+     const leftOffset=offsets[col];
+     const childWidth=tracks[col];
+     const cy=paintNode(child,s,left+pl+leftOffset,rowTop,childWidth,[...ancestors,n],depth+1,link,nodeId,formNode);
+     rowBottom=Math.max(rowBottom,cy);
+    }
+    cursorY=rowBottom+pb;
+    if(bg)bg.h=Math.max(1,cursorY-boxY);
+    if(border)border.h=Math.max(1,cursorY-boxY);
+    return cursorY+mb;
+   }
+  }
   // Consecutive inline children share the same line box and wrap together.
   let inline=[];
   const flush=()=>{if(inline.length){cursorY=paintLines(inline,left+pl,cursorY,inside,s['text-align']);inline=[];}};
@@ -124,12 +163,13 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
    const childBlock=BLOCK.has(child.tag)||['img','input','textarea','button','hr'].includes(child.tag)||style.display==='block'||style.display==='flex'||style.display==='grid';
    if(childBlock){
     flush();
-    cursorY=paintNode(child,s,left+pl,cursorY,inside,[...ancestors,n],depth+1,link,nodeId);
+    cursorY=paintNode(child,s,left+pl,cursorY,inside,[...ancestors,n],depth+1,link,nodeId,formNode);
    }else inlineSegments(child,s,[...ancestors,n],link,nodeId,inline);
   }
   flush();
   cursorY+=pb;
   if(bg)bg.h=Math.max(1,cursorY-boxY);
+  if(border)border.h=Math.max(1,cursorY-boxY);
   return cursorY+mb;
  }
  // Base presentation: normal user-agent defaults are intentionally conservative.

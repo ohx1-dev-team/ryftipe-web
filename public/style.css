@@ -89,3 +89,15 @@
 :root[data-theme="light"] .bookmarks-bar button{color:#344d77}
 :root[data-theme="light"] .bookmarks-bar button:hover{background:#d4e1f3;border-color:#b6c9e4}
 :root[data-theme="light"] .bookmark-empty{color:#7588a5}
+
+#find-panel{height:43px;display:flex;align-items:center;justify-content:flex-end;gap:7px;padding:4px 15px;border-top:1px solid #314265;background:#132139}
+#find-panel[hidden]{display:none}
+#find-query{background:#0b1529;color:#f0f4ff;border:1px solid #43577d;border-radius:8px;padding:8px 12px;min-width:100px;width:min(280px,45vw);font-size:12px}
+#find-count{color:#a9bae0;font-size:11px;min-width:50px;text-align:center}
+#find-panel button{border:1px solid #445b83;border-radius:8px;background:#263a5b;color:#e5edff;min-width:30px;height:29px}
+.footer-control{border:0;background:transparent;color:inherit;font-size:11px;padding:2px 4px;cursor:pointer}
+.footer-control:hover{color:#9dbbff}
+:root[data-theme="light"] #find-panel{background:#edf3fd;border-color:#c6d4eb}
+:root[data-theme="light"] #find-query{background:#fff;color:#23385b;border-color:#b8c9e6}
+:root[data-theme="light"] #find-panel button{background:#e0e9fa;color:#344d79;border-color:#b6c7e3}
+@media(max-width:650px){.footer-control{display:none}}

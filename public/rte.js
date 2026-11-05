@@ -1,6 +1,7 @@
 import {createScriptRuntime} from '/rte-runtime.js';
 import {parseCSS,computeStyle,length as cssLength} from '/rte-css.js';
 import {createLayoutCommands,READER_CSS} from '/rte-layout.js';
+import {getFormURL} from '/rte-forms.js';
 // RTE Canvas layout/paint pipeline: original HTML/CSS subset; never executes remote JavaScript.
 const BLOCK=new Set('html body main section article nav header footer div p h1 h2 h3 h4 h5 h6 ul ol li blockquote pre form figure figcaption table tr td th'.split(' '));
 const OMIT=new Set('head meta link title script style noscript template'.split(' '));
@@ -10,7 +11,7 @@ function px(value,fallback=0,base=700){return cssLength(value,fallback,base,16,t
 export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompatibility,javascriptEnabled=()=>true,imagesEnabled=()=>true}){
  const c=canvas.getContext('2d',{alpha:false});
  let url='',doc=null,rules=[],cssSource='',scroll=0,commands=[],hits=[],height=0,active=false,generation=0,history=[],position=-1;
- let pageBackground='#fff',lastWidth=0;
+ let pageBackground='#fff',lastWidth=0,zoom=1,lastFindIndex=-1;
  let scriptRuntime=null,scriptStatus='off';
  const images=new Map();let repaintTimer=0;
  function style(n,parent,ancestors){return computeStyle(n,parent,rules,ancestors);}
@@ -60,24 +61,25 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  }
  function layout(){
   if(!doc)return;
-  const w=Math.max(320,Math.round(canvas.clientWidth));
+  const w=Math.max(320,Math.round(canvas.clientWidth/zoom));
   const readerMode=!cssSource.trim();
   if(w!==lastWidth){rules=parseCSS(readerMode?READER_CSS:cssSource,w);lastWidth=w;}
   const result=createLayoutCommands({
     document:doc,rules,width:w,ctx:c,url,onImage:image,readerMode
   });
   commands=result.commands;hits=result.hits;height=result.height;pageBackground=result.background;
-  scroll=Math.min(scroll,Math.max(0,height-canvas.clientHeight));
+  scroll=Math.min(scroll,Math.max(0,height-canvas.clientHeight/zoom));
   paint();
  }
  function paint(){
   if(!active)return;
   const w=Math.max(320,Math.round(canvas.clientWidth)),h=Math.max(240,Math.round(canvas.clientHeight));
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
-  c.fillStyle=pageBackground;c.fillRect(0,0,w,h);c.save();c.translate(0,-scroll);
+  c.fillStyle=pageBackground;c.fillRect(0,0,w,h);c.save();c.scale(zoom,zoom);c.translate(0,-scroll);
   for(const v of commands){if(v.y+v.h<scroll-80||v.y>scroll+h+80)continue;
-   if(v.kind==='rect'){c.fillStyle=v.color;c.fillRect(v.x,v.y,v.w,v.h);}
-   if(v.kind==='text'){c.fillStyle=v.color;c.font=v.font;c.textBaseline='top';c.fillText(v.text,v.x,v.y);}
+   if(v.kind==='rect'){c.fillStyle=v.color;if(v.radius&&typeof c.roundRect==='function'){c.beginPath();c.roundRect(v.x,v.y,v.w,v.h,v.radius);c.fill();}else c.fillRect(v.x,v.y,v.w,v.h);}
+   if(v.kind==='border'){c.strokeStyle=v.color;c.lineWidth=v.lineWidth||1;if(v.radius&&typeof c.roundRect==='function'){c.beginPath();c.roundRect(v.x,v.y,v.w,v.h,v.radius);c.stroke();}else c.strokeRect(v.x,v.y,v.w,v.h);}
+   if(v.kind==='text'){c.fillStyle=v.color;c.font=v.font;c.textBaseline='top';c.fillText(v.text,v.x,v.y);if(v.underline){c.strokeStyle=v.color;c.lineWidth=1;c.beginPath();c.moveTo(v.x,v.y+v.h-3);c.lineTo(v.x+c.measureText(v.text).width,v.y+v.h-3);c.stroke();}}
    if(v.kind==='image'){const im=images.get(v.url);if(im?.status==='ready')c.drawImage(im.bitmap,v.x,v.y,v.w,v.h);else{c.fillStyle='#e4e8f0';c.fillRect(v.x,v.y,v.w,v.h);}}
   }
   c.restore();onStats?.({commands:commands.length,height});
@@ -88,7 +90,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  async function navigate(target,{replace=false}={}){
   const token=++generation;onLocation?.({url:target,loading:true});
   try{const r=await fetch('/api/rte/document?url='+encodeURIComponent(target),{cache:'no-store'}),page=await r.json();if(token!==generation)return false;if(!r.ok)throw Error(page.error||'Page load failed');
-   url=page.url;doc=page.dom;cssSource=page.css||'';lastWidth=0;rules=parseCSS(cssSource.trim()?cssSource:READER_CSS,canvas.clientWidth);scroll=0;
+   url=page.url;doc=page.dom;cssSource=page.css||'';lastWidth=0;rules=parseCSS(cssSource.trim()?cssSource:READER_CSS,canvas.clientWidth);scroll=0;lastFindIndex=-1;
    scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='off';
    if(!replace){history=history.slice(0,position+1);history.push(url);position=history.length-1;}
    show();onLocation?.({url,title:page.title,loading:false});
@@ -104,12 +106,27 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
    return true;
   }catch(e){if(token===generation)onError?.(e.message);return false;}
  }
+ function setZoom(value){
+  zoom=Math.max(.5,Math.min(2,Math.round(Number(value)*10)/10||1));
+  if(doc){lastWidth=0;layout();}
+  return zoom;
+ }
+ function findText(query,direction=1){
+  const term=String(query||'').trim().toLowerCase();if(!term){lastFindIndex=-1;paint();return{found:0,total:0};}
+  const found=commands.map((cmd,i)=>({cmd,i})).filter(v=>v.cmd.kind==='text'&&v.cmd.text.toLowerCase().includes(term));
+  if(!found.length)return{found:0,total:0};
+  const next=direction>=0?found.findIndex(v=>v.i>lastFindIndex):found.findLastIndex(v=>v.i<lastFindIndex);
+  const index=next<0?(direction>=0?0:found.length-1):next;
+  lastFindIndex=found[index].i;
+  scroll=Math.min(Math.max(0,height-canvas.clientHeight/zoom),Math.max(0,found[index].cmd.y-80));
+  paint();return{found:index+1,total:found.length};
+ }
  function back(){if(position>0){position--;navigate(history[position],{replace:true});}}
  function forward(){if(position<history.length-1){position++;navigate(history[position],{replace:true});}}
  function reload(){if(url)navigate(url,{replace:true});}
- canvas.addEventListener('wheel',e=>{if(!active)return;e.preventDefault();scroll=Math.min(Math.max(0,height-canvas.clientHeight),Math.max(0,scroll+e.deltaY));paint();},{passive:false});
- canvas.addEventListener('click',e=>{if(!active)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*canvas.width,y=(e.clientY-r.top)/r.height*canvas.height+scroll;const v=hits.findLast(v=>x>=v.x&&x<v.x+v.w&&y>=v.y&&y<v.y+v.h);if(!v)return;
-  if(scriptRuntime?.active&&v.nodeId){scriptRuntime.event(v.nodeId);if(!v.url)return;}
-  if(v.url)onNavigate?.(v.url);else if(v.input){const answer=prompt('Enter value',v.input.attrs.value||'');if(answer!==null){v.input.attrs.value=answer;layout();}}});
- return {navigate,back,forward,reload,show,hide,dispose,resize:layout,get active(){return active;},get url(){return url;},get scriptStatus(){return scriptStatus;}};
+ canvas.addEventListener('wheel',e=>{if(!active)return;e.preventDefault();scroll=Math.min(Math.max(0,height-canvas.clientHeight/zoom),Math.max(0,scroll+e.deltaY/zoom));paint();},{passive:false});
+ canvas.addEventListener('click',e=>{if(!active)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*canvas.width/zoom,y=(e.clientY-r.top)/r.height*canvas.height/zoom+scroll;const v=hits.findLast(v=>x>=v.x&&x<v.x+v.w&&y>=v.y&&y<v.y+v.h);if(!v)return;
+  if(scriptRuntime?.active&&v.nodeId){scriptRuntime.event(v.nodeId);if(!v.url&&!v.submit&&!v.input)return;}
+  if(v.url)onNavigate?.(v.url);else if(v.submit&&v.form){try{onNavigate?.(getFormURL(url,v.form,v.submit));}catch(err){onError?.(err.message);}}else if(v.input){const answer=prompt('Enter value',v.input.attrs.value||'');if(answer!==null){v.input.attrs.value=answer;layout();}}});
+ return {navigate,back,forward,reload,show,hide,dispose,resize:layout,setZoom,findText,get zoom(){return zoom;},get active(){return active;},get url(){return url;},get scriptStatus(){return scriptStatus;},get stats(){return {commands:commands.length,documentHeight:height,zoom,scriptStatus};}};
 }
