@@ -48,7 +48,7 @@ window.fetch=(input,options={})=>{
   const id=++fetchSequence;
   pendingFetch.set(id,result=>{
    if(result.error){reject(new TypeError(result.error));return;}
-   resolve(new Response(result.body,{status:result.status||200,headers:{'Content-Type':result.type||'text/plain'}}));
+   resolve(new Response(result.body,{status:result.status||200,headers:{'Content-Type':result.contentType||'text/plain'}}));
   });
   parent.postMessage({type:'rte-fetch',token,id,url:absolute.href,method},'*');
   setTimeout(()=>{if(pendingFetch.has(id)){pendingFetch.delete(id);reject(new TypeError('RTE request timed out'));}},13000);

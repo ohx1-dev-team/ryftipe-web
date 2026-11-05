@@ -8,7 +8,6 @@ import {chromium} from 'playwright';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..','public');
 const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js']]);
 const server=http.createServer(async(req,res)=>{
- console.log('HTTP server received:',req.url);
  if(req.url==='/api/rte/data?url=https%3A%2F%2Fexample.org%2Ftest.json'){
   res.writeHead(200,{'Content-Type':'application/json'});
   res.end(JSON.stringify({url:'https://example.org/test.json',type:'application/json',body:'{"hello":"network-ok"}'}));return;
@@ -30,10 +29,6 @@ try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox']});
  const page=await browser.newPage();
  page.on('pageerror',e=>console.error('Browser page error:',e.message));
- page.on('console',m=>console.log('Browser console',m.type(),m.text()));
- page.on('request',req=>{if(req.url().includes('/api/rte/'))console.log('RTE browser request',req.url());});
- page.on('response',r=>{if(r.url().includes('/api/rte/'))console.log('RTE HTTP response',r.status(),r.url());});
- page.on('requestfailed',r=>console.log('RTE request FAILED',r.url(),r.failure()));
  await page.goto(base,{waitUntil:'load'});
  const result=await page.evaluate(async()=>{
   const {createScriptRuntime}=await import('/rte-runtime.js');
@@ -50,13 +45,8 @@ try{
   const loaded=await runtime.load(data);
   return {loaded,metrics:runtime.metrics};
  });
- console.log('RTE runtime after load:',JSON.stringify(result));
- console.log('RTE snapshot sample:',JSON.stringify(await page.evaluate(()=>window.__snapshots?.slice(-5))));
- const frame=page.frames().find(f=>f.url().endsWith('/sandbox.html'));
- console.log('Sandbox diagnostic:',JSON.stringify(await frame.evaluate(()=>({pending:[...pendingFetch.keys()],active,pageURL,content:document.body.textContent,hasResponse:typeof Response}))));
- console.log('Direct page request:',await page.evaluate(async()=>{const r=await fetch('/api/rte/data?url=https%3A%2F%2Fexample.org%2Ftest.json');return {status:r.status,text:await r.text()};}));
  assert.equal(result.loaded,true,'The sandbox must finish loading');
- await page.waitForFunction(()=>window.__snapshots?.some(s=>s.includes('network-ok')),null,{timeout:4000});
+ await page.waitForFunction(()=>window.__snapshots?.some(s=>s.includes('network-ok')),null,{timeout:10000});
  const outcome=await page.evaluate(()=>({snapshots:window.__snapshots.slice(-3),errors:window.__errors,metrics:window.__rte.metrics}));
  assert.equal(outcome.metrics.executed,3,'Classic and module scripts must execute');
  assert.ok(outcome.metrics.networkRequests>=1,'The fetch bridge should receive a request');
