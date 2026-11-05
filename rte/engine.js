@@ -37,5 +37,9 @@ export async function fetchResource(raw,kind='html'){
 export async function loadPage(raw){
  const page=await fetchResource(raw,'html'),html=page.body.toString('utf8'),styles=stylesFrom(html);let css=styles.inline;
  for(const href of styles.links){try{const u=new URL(href,page.url);if(u.origin!==new URL(page.url).origin)continue;css+='\n'+(await fetchResource(u.href,'css')).body.toString('utf8');}catch{}}
- return {url:page.url,title:entities(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,160000),engine:'RTE/0.4'};
+ const scriptCount=(html.match(/<script\b/gi)||[]).length;
+ const appHints=/<(?:div|main)[^>]+(?:id|class)=["'][^"']*(?:root|app|__next|__nuxt|yt-app|ytd-app)/i.test(html);
+ const heavySite=/^(?:www\.|m\.)?(?:youtube\.com|youtu\.be|google\.com|facebook\.com|instagram\.com|tiktok\.com|netflix\.com|discord\.com)$/.test(new URL(page.url).hostname);
+ const dynamic=heavySite||(scriptCount>=8&&(appHints||scriptCount>=24));
+ return {url:page.url,title:entities(html.match(/<title\b[^>]*>([\s\\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,160000),engine:'RTE/0.5',compatibility:{javascriptRequired:dynamic,scriptCount,reason:dynamic?'This site depends on JavaScript and browser APIs that RTE does not implement.':'Experimental HTML/CSS support.'}};
 }

@@ -7,7 +7,7 @@ const OMIT=new Set('head meta link title script style noscript template'.split('
 const base={color:'#1f2937','font-size':'16px','font-weight':'normal','font-family':'Arial'};
 const defaults={body:{'background-color':'#fff'},a:{color:'#2052af'},h1:{'font-size':'32px','font-weight':'bold'},h2:{'font-size':'26px','font-weight':'bold'},h3:{'font-size':'21px','font-weight':'bold'},b:{'font-weight':'bold'},strong:{'font-weight':'bold'},small:{'font-size':'12px'},code:{'font-family':'monospace'}};
 function px(value,fallback=0,base=700){if(!value)return fallback;const v=String(value);if(v.endsWith('%'))return parseFloat(v)*base/100;return /^[\d.]+(?:px)?$/.test(v)?+parseFloat(v):fallback;}
-export function createRTE(canvas,{onNavigate,onLocation,onError,onStats}){
+export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompatibility}){
  const c=canvas.getContext('2d',{alpha:false});
  let url='',doc=null,rules=[],scroll=0,commands=[],hits=[],height=0,active=false,generation=0,history=[],position=-1;
  const images=new Map();let repaintTimer=0;
@@ -72,6 +72,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats}){
   const token=++generation;onLocation?.({url:target,loading:true});
   try{const r=await fetch('/api/rte/document?url='+encodeURIComponent(target),{cache:'no-store'}),page=await r.json();if(token!==generation)return false;if(!r.ok)throw Error(page.error||'Page load failed');
    url=page.url;doc=page.dom;rules=parseCSS(page.css);scroll=0;
+   if(page.compatibility?.javascriptRequired){onLocation?.({url,title:page.title,loading:false});onCompatibility?.(page.compatibility);return true;}
    if(!replace){history=history.slice(0,position+1);history.push(url);position=history.length-1;}
    show();onLocation?.({url,title:page.title,loading:false});return true;
   }catch(e){if(token===generation)onError?.(e.message);return false;}

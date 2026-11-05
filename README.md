@@ -25,6 +25,15 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.5.0 — Theme and compatibility capstone
+
+- Persistent dark/light theme toggle in the toolbar and settings. Theme styles affect Ryftipe's own UI, not external websites.
+- A clear compatibility explanation replaces blank/fragmented RTE rendering for script-heavy dynamic sites. The user can switch to Chromium fallback from the page. **YouTube is still not supported in the original RTE engine**; Chromium fallback still has video streaming limitations.
+- Direct bookmark toolbar button; Ctrl+D to bookmark and Alt+Left to go back.
+- Chromium navigation requests are now queued while its fallback session starts, rather than lost.
+- Reports JavaScript dependence and script count from the HTML fetcher (heuristic; not perfect).
+- Startup continues to always show `ryftipe://home` as requested.
+
 ## v0.4.2 homepage on every launch
 
 - On initial application load, always display `ryftipe://home` rather than reopening the last internal page or loading an external URL.
