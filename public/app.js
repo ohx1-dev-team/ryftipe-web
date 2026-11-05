@@ -1,9 +1,9 @@
-import {createRTE} from '/rte.js';
 const $=id=>document.getElementById(id);
+const historyAPI=window.history;
 const canvas=$('screen'),ctx=canvas.getContext('2d',{alpha:false});
 let ws,connected=false,ready=false,remoteURL='https://example.com',internal='home';
 let pendingFrame=null,imageBusy=false,resizeTimeout,noticeTimeout,lastMetrics={fps:0,kbps:0};
-let engine=localStorage.getItem('ryftipe.engine')||'rte',rte=null;
+let engine=localStorage.getItem('ryftipe.engine')||'rte',rte=null,rteLoading=null;
 if(!['rte','chromium'].includes(engine))engine='rte';
 const known=new Set(['home','newtab','settings','gpu','about','history','bookmarks','help']);
 let quality=localStorage.getItem('ryftipe.quality')||'balanced';
@@ -16,7 +16,7 @@ function send(o){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(o));}
 function notice(m,ms=5000){$('notice').textContent=m;$('notice').hidden=false;clearTimeout(noticeTimeout);noticeTimeout=setTimeout(()=>$('notice').hidden=true,ms);}
 function dimensions(){const r=canvas.getBoundingClientRect();return {width:Math.min(1920,Math.max(320,Math.round(r.width))),height:Math.min(1200,Math.max(240,Math.round(r.height)))};}
 function resize(){const d=dimensions();if(canvas.width!==d.width||canvas.height!==d.height){canvas.width=d.width;canvas.height=d.height;}if(ready)send({type:'resize',...d});}
-function showBrowser(){$('login').hidden=true;$('browser').hidden=false;initRTE();openInternal('home');if(engine==='chromium')connect();else nativeStatus();}
+function showBrowser(){$('login').hidden=true;$('browser').hidden=false;const initial=internalFromURL(location.href);openInternal(initial||'home',{replace:true});initRTE();if(engine==='chromium')connect();else nativeStatus();}
 async function checkAuth(){try{const r=await fetch('/api/auth');const v=await r.json();if(v.authenticated)showBrowser();else $('login').hidden=false;}catch{$('login').hidden=false;}}
 $('login-form').addEventListener('submit',async e=>{e.preventDefault();const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('password').value})});if(!r.ok){$('login-error').textContent='Invalid password';return;}$('password').value='';showBrowser();});
 function nativeStatus(){$('connection').textContent='RTE active';document.querySelector('.light').classList.add('online');$('quality-label').textContent='RTE';$('fps').textContent='Canvas';$('bitrate').textContent='No stream';}
@@ -29,24 +29,52 @@ function pageHTML(p){
  if(p==='home'||p==='newtab')return '<section class="hero"><span class="symbol">◈</span><div class="eyebrow">Welcome to Ryftipe</div><h1>Your browser, your space.</h1><p>Ryftipe Engine: original rendering with Chromium fallback.</p><form class="hero-search" id="hero-search"><input id="hero-url" placeholder="Search or enter a website" autocomplete="off"><button>Go</button></form></section><div class="grid">'+tiles()+'</div>';
  if(p==='settings')return heading('Settings','Configure your Ryftipe experience. Settings on this device are stored locally until accounts are introduced.')+'<div class="panel"><div class="setting-row"><div><strong>Rendering engine</strong><small>RTE is experimental; Chromium supports more websites.</small></div><select id="engine-select"><option value="rte">Ryftipe Engine (RTE)</option><option value="chromium">Chromium fallback</option></select></div><div class="setting-row"><div><strong>Stream quality</strong><small>Higher quality uses more bandwidth and server resources.</small></div><select id="preset-select"><option value="fast">Fast</option><option value="balanced">Balanced</option><option value="sharp">Sharp</option></select></div><div class="setting-row"><div><strong>Browser home</strong><small>Open your Ryftipe start page.</small></div><button class="minor" data-page="home">Open home</button></div></div><h2 class="section-title">Diagnostics</h2><button class="minor" data-page="gpu">View remote GPU information</button>';
  if(p==='gpu')return heading('GPU diagnostics','These are the server-side Chromium graphics capabilities, not your device GPU.')+'<div class="notice-inline">GPU acceleration depends on your Render instance and Chromium launch configuration. Software rendering is normal on some cloud hosts. This page reports detected capabilities; it does not enable GPU acceleration.</div><div class="panel" style="margin-top:18px" id="gpu-detail"><p>Loading Chromium GPU information…</p></div><h2 class="section-title">Full diagnostic data</h2><pre class="raw" id="gpu-raw">Loading…</pre><div class="page-actions"><button class="minor" id="refresh-gpu">Refresh diagnostics</button></div>';
- if(p==='about')return heading('About Ryftipe','Independent remote browser project by OHx1.')+'<div class="panel"><div class="diag"><span>Version</span><strong>0.4.0</strong></div><div class="diag"><span>Rendering</span><strong>RTE Canvas renderer + optional Chromium fallback</strong></div><div class="diag"><span>Transport</span><strong>CDP JPEG frames over binary WebSocket</strong></div><div class="diag"><span>Audio</span><strong>Not supported yet</strong></div><div class="diag"><span>Saved profiles</span><strong>Not supported yet — no PostgreSQL integration</strong></div></div>';
+ if(p==='about')return heading('About Ryftipe','Independent remote browser project by OHx1.')+'<div class="panel"><div class="diag"><span>Version</span><strong>0.4.1</strong></div><div class="diag"><span>Rendering</span><strong>RTE Canvas renderer + optional Chromium fallback</strong></div><div class="diag"><span>Transport</span><strong>CDP JPEG frames over binary WebSocket</strong></div><div class="diag"><span>Audio</span><strong>Not supported yet</strong></div><div class="diag"><span>Saved profiles</span><strong>Not supported yet — no PostgreSQL integration</strong></div></div>';
  if(p==='help')return heading('Help & internal pages','Enter these addresses directly in the Ryftipe address bar.')+'<div class="grid">'+tiles()+'</div><p class="subtle">Internal addresses use <code>ryftipe://home</code>, <code>ryftipe://settings</code>, <code>ryftipe://gpu</code>, <code>ryftipe://bookmarks</code>, <code>ryftipe://history</code>, <code>ryftipe://about</code> and <code>ryftipe://help</code>. Ctrl+L focuses the address bar. These pages work without a remote Chromium frame.</p>';
  if(p==='history')return heading('History','Recent external pages on this device. No account sync yet.')+'<div class="page-actions"><button class="minor" id="clear-history">Clear history</button></div><div class="panel" style="margin-top:20px">'+(history.length?history.map((v,i)=>rowHTML(v,i,'history')).join(''):'<p class="subtle">No browsing history yet.</p>')+'</div>';
  if(p==='bookmarks')return heading('Bookmarks','Saved on this device, not synced across updates or devices.')+'<div class="page-actions"><button class="minor" id="add-bookmark">Bookmark current remote website</button></div><div class="panel" style="margin-top:20px">'+(bookmarks.length?bookmarks.map((v,i)=>rowHTML(v,i,'bookmarks')).join(''):'<p class="subtle">No bookmarks yet.</p>')+'</div>';
  return heading('Page not found','That internal address does not exist.')+'<button class="minor" data-page="home">Go home</button>';
 }
-function openInternal(p){internal=known.has(p)?p:'unknown';rte?.hide();$('internal').hidden=false;canvas.hidden=true;$('waiting').hidden=true;updateLocation('ryftipe://'+p,label(p));$('internal-content').innerHTML=pageHTML(internal);$('internal').scrollTop=0;bindInternal();if(p==='gpu')loadGPU();}
-function showRemote(){internal=null;$('internal').hidden=true;if(engine==='rte'){canvas.hidden=true;$('waiting').hidden=true;rte?.show();$('quality-label').textContent='RTE';}else{rte?.hide();canvas.hidden=false;$('waiting').hidden=Boolean(pendingFrame||hadFrame);resize();$('quality-label').textContent=capitalize(quality);}updateLocation(remoteURL,hostName(remoteURL));}
+function internalFromURL(raw){
+ try{
+  const url=new URL(raw,location.origin);
+  if(url.protocol==='ryftipe:')return (url.hostname||url.pathname.replace(/^\/+/, '')||'home').toLowerCase();
+  if(url.origin===location.origin){const p=url.searchParams.get('page');if(p)return p.toLowerCase();const hash=url.hash.match(/^#\/([a-z-]+)/i);if(hash)return hash[1].toLowerCase();}
+ }catch{}
+ return null;
+}
+function openInternal(p,{replace=false}={}){
+ const page=String(p||'home').toLowerCase();
+ internal=known.has(page)?page:'unknown';rte?.hide();
+ $('internal').hidden=false;canvas.hidden=true;$('waiting').hidden=true;
+ updateLocation('ryftipe://'+page,label(page));
+ $('internal-content').innerHTML=pageHTML(internal);$('internal').scrollTop=0;
+ const webURL=new URL(location.href);webURL.searchParams.set('page',page);webURL.hash='';
+ if(replace)historyAPI.replaceState({ryftipePage:page},'',webURL);
+ else if(new URL(location.href).searchParams.get('page')!==page)historyAPI.pushState({ryftipePage:page},'',webURL);
+ bindInternal();if(page==='gpu')loadGPU();
+}
+function showRemote(){internal=null;const webURL=new URL(location.href);if(webURL.searchParams.has('page')){webURL.searchParams.delete('page');historyAPI.replaceState({},'',webURL);}$('internal').hidden=true;if(engine==='rte'){canvas.hidden=true;$('waiting').hidden=true;rte?.show();$('quality-label').textContent='RTE';}else{rte?.hide();canvas.hidden=false;$('waiting').hidden=Boolean(pendingFrame||hadFrame);resize();$('quality-label').textContent=capitalize(quality);}updateLocation(remoteURL,hostName(remoteURL));}
 let hadFrame=false;
 function hostName(u){try{return new URL(u).hostname;}catch{return 'Website';}}
 function navigate(value){
  let url=String(value||'').trim();if(!url)return;
- if(/^ryftipe:\/\//i.test(url)){let page=url.slice(10).replace(/\/.*$/,'').toLowerCase();openInternal(page||'home');return;}
+ const page=internalFromURL(url);if(page!==null){openInternal(page||'home');return;}
  if(/^https?:\/\//i.test(url)===false){if(url.includes(' ')||!url.includes('.'))url='https://www.google.com/search?q='+encodeURIComponent(url);else url='https://'+url;}
- remoteURL=url;showRemote();if(engine==='rte'){rte?.navigate(url);return;}if(!ready){notice('Remote Chromium is still connecting.');return;}send({type:'navigate',url});
+ remoteURL=url;showRemote();if(engine==='rte'){initRTE().then(instance=>instance?.navigate(url));return;}if(!ready){notice('Remote Chromium is still connecting.');return;}send({type:'navigate',url});
 }
-function initRTE(){if(rte)return;rte=createRTE($('rte-screen'),{onNavigate:navigate,onError:notice,onLocation:m=>{if(!m.url)return;remoteURL=m.url;if(!internal)updateLocation(m.url,m.title||hostName(m.url));if(m.title&&history[0]?.url!==m.url){history.unshift({url:m.url,title:m.title,when:Date.now()});saveList('history',history);}},onStats:m=>{if(engine==='rte'){$('fps').textContent=m.commands+' objects';$('bitrate').textContent='Canvas';}}});}
-function switchEngine(next){if(next===engine)return;engine=next;localStorage.setItem('ryftipe.engine',engine);if(engine==='chromium'){connect();}else{ws?.close();nativeStatus();}if(!internal)navigate(remoteURL);}
+async function initRTE(){
+ if(rte)return rte;if(rteLoading)return rteLoading;
+ rteLoading=import('/rte.js').then(({createRTE})=>{
+  rte=createRTE($('rte-screen'),{onNavigate:navigate,onError:notice,onLocation:m=>{
+   if(!m.url)return;remoteURL=m.url;if(!internal)updateLocation(m.url,m.title||hostName(m.url));
+   if(m.title&&history[0]?.url!==m.url){history.unshift({url:m.url,title:m.title,when:Date.now()});saveList('history',history);}
+  },onStats:m=>{if(engine==='rte'){$('fps').textContent=m.commands+' objects';$('bitrate').textContent='Canvas';}}});
+  return rte;
+ }).catch(e=>{notice('RTE unavailable: '+e.message,12000);return null;}).finally(()=>{rteLoading=null;});
+ return rteLoading;
+}
+function switchEngine(next){if(next===engine)return;engine=next;localStorage.setItem('ryftipe.engine',engine);if(engine==='chromium'){connect();}else{ws?.close();initRTE();nativeStatus();}if(!internal)navigate(remoteURL);}
 function bindInternal(){
  $('internal-content').querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>openInternal(b.dataset.page)));
  $('internal-content').querySelectorAll('[data-go]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();navigate(a.dataset.go);}));
@@ -93,6 +121,7 @@ $('url-form').addEventListener('submit',e=>{e.preventDefault();navigate($('url')
 for(const id of ['back','forward','reload'])$(id).onclick=()=>{if(internal){if(id==='reload')openInternal(internal);else if(id==='back')showRemote();else openInternal('home');}else if(engine==='rte'){rte?.[id]();}else send({type:id});};
 $('home').onclick=()=>openInternal('home');
 $('settings-toggle').onclick=()=>openInternal('settings');
+window.addEventListener('popstate',()=>{const p=internalFromURL(location.href);if(p)openInternal(p,{replace:true});else openInternal('home',{replace:true});});
 function pointer(e){const r=canvas.getBoundingClientRect();return{x:Math.max(0,Math.round((e.clientX-r.left)/r.width*canvas.width)),y:Math.max(0,Math.round((e.clientY-r.top)/r.height*canvas.height))};}
 canvas.addEventListener('click',e=>{if(engine!=='chromium')return;send({type:'click',...pointer(e)});canvas.focus();});
 let lastMove=0;canvas.addEventListener('mousemove',e=>{if(engine!=='chromium')return;const now=performance.now();if(now-lastMove<50)return;lastMove=now;send({type:'move',...pointer(e)});});
