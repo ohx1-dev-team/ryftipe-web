@@ -1,12 +1,15 @@
+import {normalizeRTEEvent} from '/rte-bridge.js';
 import {loadModuleGraph} from '/rte-modules.js';
 import {allowedPageRequest,containsModuleImports} from '/rte-platform.js';
 // RTE isolated script runner. Remote JavaScript never executes in Ryftipe's privileged page.
 export function createScriptRuntime({onSnapshot,onError}){
  let iframe=null,token='',listener=null,readyResolver=null,executionResolver=null,stopped=false,currentPage='';
+ const pendingEvents=new Map();let nextEvent=0;
  const MAX_SCRIPTS=20;
  let telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0,moduleGraphs:0,moduleDependencies:0};
  function release(){
   stopped=true;if(listener)window.removeEventListener('message',listener);
+  for(const cb of pendingEvents.values())cb(false);pendingEvents.clear();
   iframe?.remove();iframe=null;listener=null;
   readyResolver?.(false);executionResolver?.(false);
   readyResolver=null;executionResolver=null;
@@ -31,6 +34,7 @@ export function createScriptRuntime({onSnapshot,onError}){
    if(m.type==='rte-ready'){readyResolver?.(true);readyResolver=null;}
    if(m.type==='rte-executed'){if(m.ok)telemetry.executed++;else telemetry.failed++;executionResolver?.(Boolean(m.ok));executionResolver=null;if(!m.ok)onError?.('Website script failed: '+String(m.error||'unknown'));}
    if(m.type==='rte-fetch'){void proxyFetch(m);return;}
+   if(m.type==='rte-event-result'){const callback=pendingEvents.get(m.requestId);if(callback){pendingEvents.delete(m.requestId);callback(Boolean(m.prevented));}return;}
    if(m.type==='rte-snapshot'){
     if(!m.body||m.body.tag!=='body'||typeof m.title!=='string')return;
     try{if(JSON.stringify(m.body).length>1400000)return;}catch{return;}
@@ -85,8 +89,15 @@ export function createScriptRuntime({onSnapshot,onError}){
   if(!stopped)send('lifecycle');
   return !stopped;
  }
- function event(id){
-  if(!stopped&&iframe&&Number.isFinite(id))send('event',{id,event:'click'});
+ function event(payload){
+  const data=normalizeRTEEvent(typeof payload==='number'?{id:payload,event:'click'}:payload);
+  if(!data||stopped||!iframe)return Promise.resolve(false);
+  const requestId=++nextEvent;
+  return new Promise(resolve=>{
+   pendingEvents.set(requestId,resolve);
+   send('event',{...data,requestId});
+   setTimeout(()=>{const callback=pendingEvents.get(requestId);if(callback){pendingEvents.delete(requestId);callback(false);}},1000);
+  });
  }
  return {load,event,dispose:release,get metrics(){return {...telemetry};},get active(){return !!iframe&&!stopped;}};
 }

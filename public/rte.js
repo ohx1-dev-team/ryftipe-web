@@ -133,8 +133,47 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  function forward(){if(position<history.length-1){position++;navigate(history[position],{replace:true});}}
  function reload(){if(url)navigate(url,{replace:true});}
  canvas.addEventListener('wheel',e=>{if(!active)return;e.preventDefault();scroll=Math.min(Math.max(0,height-canvas.clientHeight/zoom),Math.max(0,scroll+e.deltaY/zoom));schedulePaint();},{passive:false});
- canvas.addEventListener('click',e=>{if(!active)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*canvas.width/zoom,y=(e.clientY-r.top)/r.height*canvas.height/zoom+scroll;const v=hits.findLast(v=>x>=v.x&&x<v.x+v.w&&y>=v.y&&y<v.y+v.h);if(!v)return;
-  if(scriptRuntime?.active&&v.nodeId){scriptRuntime.event(v.nodeId);if(!v.url&&!v.submit&&!v.input)return;}
-  if(v.url)onNavigate?.(v.url);else if(v.submit&&v.form){try{onNavigate?.(getFormURL(url,v.form,v.submit));}catch(err){onError?.(err.message);}}else if(v.input){const answer=prompt('Enter value',v.input.attrs.value||'');if(answer!==null){v.input.attrs.value=answer;layout();}}});
+ canvas.addEventListener('click',async e=>{
+  if(!active)return;
+  const r=canvas.getBoundingClientRect();
+  const x=(e.clientX-r.left)/r.width*canvas.width/zoom;
+  const y=(e.clientY-r.top)/r.height*canvas.height/zoom+scroll;
+  const v=hits.findLast(hit=>x>=hit.x&&x<hit.x+hit.w&&y>=hit.y&&y<hit.y+hit.h);
+  if(!v)return;
+  const currentGeneration=generation;
+  let value=null,checked=null;
+  if(v.input){
+   const type=String(v.input.attrs?.type||'text').toLowerCase();
+   if(type==='checkbox'||type==='radio'){
+    checked=type==='radio'?true:!Object.hasOwn(v.input.attrs,'checked');
+    if(checked)v.input.attrs.checked='';else delete v.input.attrs.checked;
+    value=v.input.attrs.value||'on';
+   }else{
+    const answer=prompt('Edit '+(v.input.attrs?.name||'field'),v.input.attrs?.value||'');
+    if(answer===null)return;
+    value=answer;v.input.attrs.value=answer.slice(0,2000);
+   }
+  }
+  if(scriptRuntime?.active&&v.nodeId){
+   const payload={id:v.nodeId,event:'click'};
+   if(value!==null)payload.value=value;
+   if(checked!==null)payload.checked=checked;
+   const prevented=await scriptRuntime.event(payload);
+   if(currentGeneration!==generation)return;
+   if(v.input){
+    await scriptRuntime.event({id:v.nodeId,event:'input',...value!==null?{value}:{},...checked!==null?{checked}:{}});
+    await scriptRuntime.event({id:v.nodeId,event:'change',...value!==null?{value}:{},...checked!==null?{checked}:{}});
+   }
+   if(prevented)return;
+  }
+  if(v.url)onNavigate?.(v.url);
+  else if(v.submit&&v.form){
+   if(scriptRuntime?.active&&Number.isFinite(v.form.rteId)){
+    const blocked=await scriptRuntime.event({id:v.form.rteId,event:'submit'});
+    if(blocked||currentGeneration!==generation)return;
+   }
+   try{onNavigate?.(getFormURL(url,v.form,v.submit));}catch(err){onError?.(err.message);}
+  }else if(v.input)layout();
+ });
  return {navigate,back,forward,reload,show,hide,dispose,resize:layout,setZoom,findText,get zoom(){return zoom;},get active(){return active;},get url(){return url;},get scriptStatus(){return scriptStatus;},get stats(){return {commands:commands.length,documentHeight:height,zoom,scriptStatus,paintMs:paintCostMs,averagePaintMs,paintCount,scriptMetrics:scriptRuntime?.metrics||lastScriptMetrics};}};
 }

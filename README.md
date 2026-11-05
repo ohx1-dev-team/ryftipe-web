@@ -25,6 +25,16 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.17.0 — Integrated DOM, event and networking capstone
+
+- Adds a shared, validated **RTE event protocol** between the Canvas renderer and the sandboxed document.
+- Canvas navigation now waits for JavaScript click handlers to run. `event.preventDefault()` can cancel the default navigation, and user-edited inputs generate real `input` and `change` events in the sandboxed DOM.
+- Adds a narrow **XMLHttpRequest** compatibility class: asynchronous same-origin GET with `onload`, `onerror`, `readystatechange`, response text and JSON. Synchronous XHR, uploads, authentication, cross-origin requests and methods other than GET are unsupported.
+- The sandbox's `fetch` and XHR share the read-only server request bridge. Browser credentials and cookies are not forwarded to untrusted sites.
+- Integration tests now verify static module graphs, DOM mutation, Shadow DOM snapshots, JavaScript click cancellation, input updates, `fetch`, and XHR in one browser session.
+- RTE still does **not** implement the full web platform; browser APIs, CSS layout, cross-origin resources, adaptive streaming, security hardening and YouTube playback remain incomplete.
+- The YouTube live probe remains an **informational, nonblocking test**. Only a playable real video with advanced interaction would count as meeting the user goal.
+
 ## v0.16.0 — Static ES module dependency graph
 
 - RTE resolves bounded, same-origin static ES module imports and re-exports.

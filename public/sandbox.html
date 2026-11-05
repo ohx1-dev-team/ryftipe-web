@@ -60,6 +60,44 @@ window.fetch=(input,options={})=>{
   setTimeout(()=>{if(pendingFetch.has(id)){pendingFetch.delete(id);reject(new TypeError('RTE request timed out'));}},13000);
  });
 };
+// Narrow XHR compatibility shim, backed by the same read-only RTE fetch policy.
+class RTEHttpRequest extends EventTarget{
+ constructor(){super();this.readyState=0;this.status=0;this.responseText='';this.response=null;this.responseType='';this.responseURL='';this.timeout=0;this.withCredentials=false;this._method='GET';this._url='';this._aborted=false;}
+ open(method,url,async=true){
+  if(async===false)throw new DOMException('Synchronous XHR unsupported','NotSupportedError');
+  this._method=String(method).toUpperCase();this._url=String(url);this._aborted=false;this.readyState=1;this.dispatchEvent(new Event('readystatechange'));
+ }
+ setRequestHeader(){/* Cookie and authorization headers intentionally not forwarded. */}
+ getResponseHeader(name){return String(name).toLowerCase()==='content-type'?this._contentType||null:null;}
+ getAllResponseHeaders(){return this._contentType?'content-type: '+this._contentType+'\r\n':'';}
+ abort(){this._aborted=true;this.readyState=0;this.dispatchEvent(new Event('abort'));}
+ async send(body=null){
+  if(this.readyState!==1)throw new DOMException('Call open() before send()','InvalidStateError');
+  if(body!==null||this._method!=='GET')throw new DOMException('RTE only supports read-only GET XHR','NotSupportedError');
+  const previous=this._aborted;
+  try{
+   const response=await window.fetch(this._url,{method:'GET'});
+   if(this._aborted||previous)return;
+   this.status=response.status;this.responseURL=response.url||new URL(this._url,pageURL).href;
+   this._contentType=response.headers.get('content-type')||'text/plain';
+   this.readyState=2;this.dispatchEvent(new Event('readystatechange'));
+   this.readyState=3;this.dispatchEvent(new Event('readystatechange'));
+   this.responseText=await response.text();
+   if(this._aborted)return;
+   this.response=this.responseType==='json'?JSON.parse(this.responseText):this.responseText;
+   this.readyState=4;this.dispatchEvent(new Event('readystatechange'));
+   this.dispatchEvent(new Event('load'));this.dispatchEvent(new Event('loadend'));
+  }catch(error){
+   if(this._aborted)return;
+   this.status=0;this.readyState=4;this.dispatchEvent(new Event('readystatechange'));
+   this.dispatchEvent(new Event('error'));this.dispatchEvent(new Event('loadend'));
+  }
+ }
+}
+for(const name of ['readystatechange','load','loadend','error','abort','timeout']){
+ Object.defineProperty(RTEHttpRequest.prototype,'on'+name,{configurable:true,get(){return this['_on_'+name]||null;},set(value){if(this['_on_'+name])this.removeEventListener(name,this['_on_'+name]);this['_on_'+name]=typeof value==='function'?value:null;if(this['_on_'+name])this.addEventListener(name,this['_on_'+name]);}});
+}
+window.XMLHttpRequest=RTEHttpRequest;
 window.addEventListener('message',e=>{
  if(e.source!==parent)return;
  const m=e.data;if(!m||m.type!=='rte-command'||typeof m.token!=='string'||m.token.length>90)return;
@@ -111,7 +149,21 @@ window.addEventListener('message',e=>{
   window.dispatchEvent(new Event('load'));
   snapshot();
  } else if(m.action==='event'){
-  const el=byId(Number(m.id));if(el){el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));snapshot();}
+  const el=byId(Number(m.id));
+  let prevented=false;
+  if(el){
+   if(typeof m.value==='string'&&'value'in el)el.value=m.value;
+   if(typeof m.checked==='boolean'&&'checked'in el)el.checked=m.checked;
+   const eventType=['click','input','change','submit','focus','blur','keydown','keyup'].includes(m.event)?m.event:'click';
+   const options={bubbles:true,cancelable:true,composed:true};
+   const event=eventType==='click'?new MouseEvent('click',options):
+    eventType==='keydown'||eventType==='keyup'?new KeyboardEvent(eventType,{...options,key:String(m.key||'')}):
+    new Event(eventType,options);
+   prevented=!el.dispatchEvent(event);
+   if(eventType==='input'||eventType==='change')el.setAttribute('value',el.value||'');
+   snapshot();
+  }
+  parent.postMessage({type:'rte-event-result',token,requestId:m.requestId,prevented},'*');
  }
 });
 parent.postMessage({type:'rte-loaded'},'*');
