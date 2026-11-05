@@ -5,7 +5,7 @@ function send(value){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(v
 function status(s){$('status').textContent=s;$('status').hidden=!s;}
 function resize(){if(!connected)return;const r=$('screen').getBoundingClientRect();send({type:'resize',width:Math.min(1920,Math.max(320,Math.round(r.width))),height:Math.min(1200,Math.max(240,Math.round(r.height)))});}
 function showBrowser(){$('login').hidden=true;$('browser').hidden=false;connect();}
-async function checkAuth(){const r=await fetch('/api/auth');if((await r.json()).authenticated)showBrowser();}
+async function checkAuth(){const r=await fetch('/api/auth');const state=await r.json();if(state.authenticated)showBrowser();else $('login').hidden=false;}
 $('login-form').addEventListener('submit',async e=>{e.preventDefault();const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('password').value})});if(!r.ok){$('login-error').textContent='Invalid password';return;}$('password').value='';showBrowser();});
 function connect(){
   ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/stream');

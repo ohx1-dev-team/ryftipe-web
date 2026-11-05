@@ -9,9 +9,10 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { chromium } from 'playwright';
 
 const PORT = Number(process.env.PORT || 3000);
-const PASSWORD = process.env.RYFTIPE_PASSWORD;
-if (!PASSWORD || PASSWORD.length < 12) {
-  console.error('Set RYFTIPE_PASSWORD to a strong password with at least 12 characters.');
+// Optional private-mode password. Unset means no login prompt.
+const PASSWORD = process.env.RYFTIPE_PASSWORD || '';
+if (PASSWORD && PASSWORD.length < 12) {
+  console.error('If RYFTIPE_PASSWORD is set, it must contain at least 12 characters.');
   process.exit(1);
 }
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -50,6 +51,7 @@ function tokenFor(req) {
   return cookie ? cookie.substring('ryftipe='.length) : '';
 }
 function authorized(req) {
+  if (!PASSWORD) return true;
   const token = tokenFor(req);
   return Boolean(token && activeTokens.get(token) > Date.now());
 }
@@ -59,8 +61,9 @@ function json(res, status, result) {
 }
 const server = http.createServer(async (req, res) => {
   if (req.url === '/health') return json(res, 200, { ok:true });
-  if (req.url === '/api/auth') return json(res, 200, { authenticated:authorized(req) });
+  if (req.url === '/api/auth') return json(res, 200, { authenticated:authorized(req), loginRequired:Boolean(PASSWORD) });
   if (req.url === '/api/login' && req.method === 'POST') {
+    if (!PASSWORD) return json(res, 200, { ok:true });
     let body = '';
     for await (const chunk of req) {
       body += chunk.toString();
@@ -77,6 +80,7 @@ const server = http.createServer(async (req, res) => {
     return json(res,200,{ok:true});
   }
   if (req.url === '/api/logout' && req.method === 'POST') {
+    if (!PASSWORD) return json(res,200,{ok:true});
     activeTokens.delete(tokenFor(req));
     res.setHeader('Set-Cookie','ryftipe=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');
     return json(res,200,{ok:true});

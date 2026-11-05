@@ -4,6 +4,3 @@ services:
     runtime: docker
     plan: starter
     healthCheckPath: /health
-    envVars:
-      - key: RYFTIPE_PASSWORD
-        sync: false
