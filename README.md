@@ -25,6 +25,16 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.6.0 — Experimental JavaScript compatibility
+
+- RTE can execute a limited number of classic scripts in a sandboxed, opaque-origin iframe. Site JavaScript runs in the host browser's JavaScript engine, **never** in Ryftipe's privileged page or Node server.
+- A controlled DOM mirror sends bounded mutation snapshots to RTE for painting. Supports common native document APIs such as getElementById, querySelector, createElement, addEventListener, timers, textContent and classList.
+- Script loading from same-origin URLs through the guarded fetch endpoint, bounded script count and size, plus inline classic scripts. Modules, cross-origin scripts and dynamic script imports are not supported.
+- CSP blocks network and frame access from the sandbox; only a restricted message bridge returns DOM changes. The browser's sandbox attribute denies same-origin, popups and top-level navigation.
+- Settings toggle to disable/enable site JavaScript; status at `ryftipe://javascript`.
+- No audio/video, WebGL, full DOM/CSS standards, fetch/XHR or modern JavaScript framework compatibility. **YouTube still cannot run in RTE**. Use Chromium fallback for those sites.
+- This is an experimental sandbox and must not be treated as a fully audited security boundary. Run in a controlled environment and apply egress restrictions on Render.
+
 ## v0.5.0 — Theme and compatibility capstone
 
 - Persistent dark/light theme toggle in the toolbar and settings. Theme styles affect Ryftipe's own UI, not external websites.

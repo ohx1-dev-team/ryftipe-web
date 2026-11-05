@@ -6,6 +6,7 @@ export async function handleRTE(req,res){
   const u=new URL(req.url,'http://localhost'),raw=u.searchParams.get('url');
   if(!raw||raw.length>2000)return send(400,{error:'Invalid URL'});
   if(u.pathname==='/api/rte/document')return send(200,await loadPage(raw));
+  if(u.pathname==='/api/rte/script'){const file=await fetchResource(raw,'script');res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(file.body);}
   if(u.pathname==='/api/rte/image'){const image=await fetchResource(raw,'image');res.writeHead(200,{'Content-Type':image.type.split(';')[0],'Cache-Control':'private, max-age=120','X-Content-Type-Options':'nosniff'});return res.end(image.body);}
   return send(404,{error:'Unknown endpoint'});
  }catch(e){return send(422,{error:String(e.message||e).slice(0,200)});}

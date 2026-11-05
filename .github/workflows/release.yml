@@ -6,6 +6,8 @@ on:
       - 'package.json'
       - 'server.js'
       - 'public/**'
+      - 'rte/**'
+      - 'tests/**'
       - 'Dockerfile'
       - 'render.yaml'
       - '.github/workflows/release.yml'

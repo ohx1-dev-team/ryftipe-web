@@ -1,0 +1,54 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Ryftipe isolated JS engine</title></head><body><script>
+'use strict';
+let token='',active=false,nextID=0,scheduled=false;
+const CAP=1800;
+const observer=new MutationObserver(()=>{if(active&&!scheduled){scheduled=true;setTimeout(()=>{scheduled=false;snapshot();},110);}});
+function pack(node,depth=0,limit={count:0}){
+ if(depth>40||limit.count++>CAP)return null;
+ if(node.nodeType===3)return {text:node.textContent.slice(0,4000)};
+ if(node.nodeType!==1)return null;
+ if(['script','style','iframe','object','embed','svg','canvas','video','audio'].includes(node.localName))return null;
+ if(!node.__rteId)node.__rteId=++nextID;
+ const attrs={};for(const a of [...node.attributes].slice(0,30))if(!a.name.startsWith('on'))attrs[a.name]=a.value.slice(0,500);
+ return {tag:node.localName,rteId:node.__rteId,attrs,children:[...node.childNodes].map(n=>pack(n,depth+1,limit)).filter(Boolean)};
+}
+function snapshot(){if(active){const body=pack(document.body);parent.postMessage({type:'rte-snapshot',token,body,title:document.title},'*');}}
+function mount(tree,title){
+ active=false;observer.disconnect();document.body.replaceChildren();
+ document.title=String(title||'RTE').slice(0,120);nextID=0;
+ function make(node,depth=0){
+  if(depth>40)return document.createTextNode('');
+  if(Object.hasOwn(node,'text'))return document.createTextNode(String(node.text).slice(0,4000));
+  const tag=/^[a-z][a-z0-9-]*$/.test(node.tag||'')?node.tag:'span';
+  const el=document.createElement(tag);el.__rteId=++nextID;
+  for(const [k,v] of Object.entries(node.attrs||{})){
+   if(!/^[a-z][a-z0-9:_-]*$/i.test(k)||k.startsWith('on')||k==='srcdoc')continue;
+   try{el.setAttribute(k,String(v).slice(0,500));}catch{}
+  }
+  for(const ch of (node.children||[]).slice(0,500))el.appendChild(make(ch,depth+1));
+  return el;
+ }
+ function add(node){if(!node)return;if(node.tag==='document'||node.tag==='html'||node.tag==='body'){for(const ch of node.children||[])add(ch);}else if(node.tag!=='head')document.body.appendChild(make(node));}
+ add(tree);active=true;observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true});snapshot();
+}
+function byId(id){const queue=[document.body];let steps=0;while(queue.length&&steps++<CAP*2){const el=queue.shift();if(el.__rteId===id)return el;queue.push(...el.children);}return null;}
+window.addEventListener('message',e=>{
+ if(e.source!==parent)return;
+ const m=e.data;if(!m||m.type!=='rte-command'||typeof m.token!=='string'||m.token.length>90)return;
+ if(m.action==='load'){token=m.token;mount(m.tree,m.title);parent.postMessage({type:'rte-ready',token},'*');return;}
+ if(!active||m.token!==token)return;
+ if(m.action==='run'){
+  if(typeof m.code!=='string'||m.code.length>180000)return;
+  try{const s=document.createElement('script');s.textContent=m.code;document.body.append(s);s.remove();parent.postMessage({type:'rte-executed',token,ok:true},'*');}
+  catch(err){parent.postMessage({type:'rte-executed',token,ok:false,error:String(err.message).slice(0,120)},'*');}
+  snapshot();
+ } else if(m.action==='lifecycle'){
+  document.dispatchEvent(new Event('DOMContentLoaded',{bubbles:true}));
+  window.dispatchEvent(new Event('load'));
+  snapshot();
+ } else if(m.action==='event'){
+  const el=byId(Number(m.id));if(el){el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));snapshot();}
+ }
+});
+parent.postMessage({type:'rte-loaded'},'*');
+</script></body></html>

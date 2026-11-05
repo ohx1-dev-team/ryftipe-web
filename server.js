@@ -117,12 +117,13 @@ const server = http.createServer(async (req, res) => {
     } catch(err) { return json(res,503,{error:'GPU diagnostics unavailable',detail:String(err.message).slice(0,180)}); }
   }
   if(req.url?.startsWith('/api/rte/')){if(!authorized(req))return json(res,401,{error:'Unauthorized'});return handleRTE(req,res);}
-  const resources = { '/':'index.html','/app.js':'app.js','/rte.js':'rte.js','/style.css':'style.css' };
+  const resources = { '/':'index.html','/app.js':'app.js','/rte.js':'rte.js','/rte-runtime.js':'rte-runtime.js','/sandbox.html':'sandbox.html','/style.css':'style.css' };
   if (req.method !== 'GET' || !resources[req.url]) return json(res,404,{error:'Not found'});
   const filename = resources[req.url];
+  const sandbox=filename==='sandbox.html';
   res.writeHead(200, { 'Content-Type': filename.endsWith('.js') ? 'text/javascript' : filename.endsWith('.css') ? 'text/css' : 'text/html',
     'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff',
-    'Content-Security-Policy':"default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'" });
+    'Content-Security-Policy':sandbox?"default-src 'none'; script-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; style-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';":"default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-src 'self'; object-src 'none'; frame-ancestors 'none'" });
   fs.createReadStream(path.join(root,'public',filename)).pipe(res);
 });
 const wss = new WebSocketServer({ noServer:true });
