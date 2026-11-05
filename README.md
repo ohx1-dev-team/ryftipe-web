@@ -25,6 +25,14 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.16.0 — Static ES module dependency graph
+
+- RTE resolves bounded, same-origin static ES module imports and re-exports.
+- The isolated sandbox rewrites import specifiers to generated module blob URLs, preserving module dependency ordering.
+- Bare package specifiers, cross-origin and dynamic imports, import.meta, cycles and oversized graphs remain blocked.
+- The headless browser test now executes a module that imports a separate source module and updates the RTE DOM.
+- YouTube itself is **not yet working** in RTE; its extensive browser API dependencies, layout and adaptive streaming remain unimplemented.
+
 ## v0.15.0 — Real YouTube compatibility probe
 
 - Added a **real end-to-end headless Chromium test of Ryftipe Web in RTE mode navigating to an actual YouTube watch page**. It checks whether a locally rendered native video exists and whether its playback time advances.

@@ -6,7 +6,7 @@ import {dirname,resolve} from 'node:path';
 import {chromium} from 'playwright';
 // Browser-level sandbox integration smoke. Fixtures are local; no YouTube claim.
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..','public');
-const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js'],['/rte.js','rte.js'],['/rte-css.js','rte-css.js'],['/rte-layout.js','rte-layout.js'],['/rte-tracks.js','rte-tracks.js'],['/rte-forms.js','rte-forms.js'],['/rte-media.js','rte-media.js']]);
+const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js'],['/rte-modules.js','rte-modules.js'],['/rte.js','rte.js'],['/rte-css.js','rte-css.js'],['/rte-layout.js','rte-layout.js'],['/rte-tracks.js','rte-tracks.js'],['/rte-forms.js','rte-forms.js'],['/rte-media.js','rte-media.js']]);
 const server=http.createServer(async(req,res)=>{
  if(req.url==='/api/rte/data?url=https%3A%2F%2Fexample.org%2Ftest.json'){
   res.writeHead(200,{'Content-Type':'application/json'});
@@ -16,6 +16,11 @@ const server=http.createServer(async(req,res)=>{
   res.writeHead(200,{'Content-Type':'application/json'});
   res.end(JSON.stringify({url:'https://example.org/demo',title:'RTE Paint Fixture',engine:'RTE/test',css:'body{background-color:#f0f0f2}main{max-width:640px;margin:30px auto;padding:20px;background-color:#fff}h1{font-size:32px}',scripts:[],dom:{tag:'document',children:[{tag:'body',attrs:{},children:[{tag:'main',attrs:{},children:[{tag:'h1',attrs:{},children:[{text:'RTE Paint Fixture'}]},{tag:'p',attrs:{},children:[{text:'Canvas performance test.'}]}]}]}]}}));
   return;
+ }
+ if(req.url?.startsWith('/api/rte/script?')){
+  const u=new URL(req.url,'http://localhost').searchParams.get('url');
+  if(u==='https://example.org/dep.js'){res.writeHead(200,{'Content-Type':'text/javascript'});res.end('export const dependency = "graph-ok";');return;}
+  res.writeHead(404);res.end('Not found');return;
  }
  const file=paths.get(req.url);
  if(file){
@@ -46,7 +51,8 @@ try{
     {kind:'classic',inline:'document.getElementById("status").textContent="classic-ok";'},
     {kind:'module',inline:'document.getElementById("status").textContent+=" module-ok";'},
     {kind:'classic',inline:'fetch("/test.json").then(r=>r.json()).then(d=>{document.getElementById("status").textContent+=" "+d.hello})'},
-    {kind:'classic',inline:'const host=document.createElement("div");host.id="shadow-host";const shadow=host.attachShadow({mode:"open"});shadow.innerHTML="<span>shadow-ok</span>";document.body.append(host);'}
+    {kind:'classic',inline:'const host=document.createElement("div");host.id="shadow-host";const shadow=host.attachShadow({mode:"open"});shadow.innerHTML="<span>shadow-ok</span>";document.body.append(host);'},
+    {kind:'module',inline:'import {dependency} from "./dep.js";document.getElementById("status").textContent+=" "+dependency;'}
    ]};
   const loaded=await runtime.load(data);
   return {loaded,metrics:runtime.metrics};
@@ -54,12 +60,14 @@ try{
  assert.equal(result.loaded,true,'The sandbox must finish loading');
  await page.waitForFunction(()=>window.__snapshots?.some(s=>s.includes('network-ok')),null,{timeout:10000});
  const outcome=await page.evaluate(()=>({snapshots:window.__snapshots.slice(-3),errors:window.__errors,metrics:window.__rte.metrics}));
- assert.equal(outcome.metrics.executed,4,'Classic and module scripts must execute');
+ assert.equal(outcome.metrics.executed,5,'Classic and module scripts must execute');
  assert.ok(outcome.metrics.networkRequests>=1,'The fetch bridge should receive a request');
  assert.equal(outcome.metrics.networkFailures,0);
  assert.ok(outcome.snapshots.some(s=>s.includes('classic-ok')&&s.includes('module-ok')&&s.includes('network-ok')));
+ assert.ok(outcome.snapshots.some(s=>s.includes('graph-ok')),'Static module import should modify the DOM');
+ assert.ok(outcome.metrics.moduleDependencies>=1);
  assert.ok(outcome.snapshots.some(s=>s.includes('shadow-ok')),'Open Shadow DOM text must appear in RTE snapshots');
- console.log('PASS: sandbox, import-free ES module, DOM mutation, open Shadow DOM and same-origin JSON fetch');
+ console.log('PASS: sandbox, static ES module graph, DOM mutation, open Shadow DOM and same-origin JSON fetch');
  console.log(JSON.stringify(outcome.metrics));
  await page.evaluate(()=>window.__rte.dispose());
  const painted=await page.evaluate(async()=>{

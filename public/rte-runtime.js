@@ -1,9 +1,10 @@
+import {loadModuleGraph} from '/rte-modules.js';
 import {allowedPageRequest,containsModuleImports} from '/rte-platform.js';
 // RTE isolated script runner. Remote JavaScript never executes in Ryftipe's privileged page.
 export function createScriptRuntime({onSnapshot,onError}){
  let iframe=null,token='',listener=null,readyResolver=null,executionResolver=null,stopped=false,currentPage='';
  const MAX_SCRIPTS=20;
- let telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0};
+ let telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0,moduleGraphs:0,moduleDependencies:0,moduleGraphs:0,moduleDependencies:0};
  function release(){
   stopped=true;if(listener)window.removeEventListener('message',listener);
   iframe?.remove();iframe=null;listener=null;
@@ -56,23 +57,30 @@ export function createScriptRuntime({onSnapshot,onError}){
   document.body.append(iframe);iframe.src='/sandbox.html';
   const timer=new Promise(resolve=>setTimeout(()=>resolve(false),4500));
   if(!(await Promise.race([whenReady,timer]))||stopped){release();throw Error('RTE script sandbox did not start');}
+  async function fetchScript(target){
+   const url=new URL(target,page.url);
+   if(url.origin!==new URL(page.url).origin)throw Error('Cross-origin script blocked');
+   const r=await fetch('/api/rte/script?url='+encodeURIComponent(url.href),{cache:'no-store'});
+   if(!r.ok)throw Error('Script request failed');
+   return r.text();
+  }
   for(const entry of (page.scripts||[]).slice(0,MAX_SCRIPTS)){
    if(stopped)break;
-   let code='';
    try{
-    if(entry.src){
-     const target=new URL(entry.src,page.url);
-     if(target.origin!==new URL(page.url).origin){telemetry.skipped++;continue;}
-     const r=await fetch('/api/rte/script?url='+encodeURIComponent(target.href));
-     if(!r.ok){telemetry.skipped++;continue;}
-     code=await r.text();
-    }else code=String(entry.inline||'');
-   }catch{continue;}
-   if(!code||code.length>160000){telemetry.skipped++;continue;}
-   if(entry.kind==='module'&&containsModuleImports(code)){telemetry.skipped++;continue;}
-   const ack=new Promise(resolve=>{executionResolver=resolve;});
-   send('run',{code,scriptType:entry.kind==='module'?'module':'classic'});
-   await Promise.race([ack,new Promise(resolve=>setTimeout(()=>resolve(false),2000))]);
+    const code=entry.src?await fetchScript(entry.src):String(entry.inline||'');
+    if(!code||code.length>160000){telemetry.skipped++;continue;}
+    let instruction={scriptType:'classic',code};
+    if(entry.kind==='module'){
+     const entryURL=entry.src?new URL(entry.src,page.url).href:page.url;
+     const graph=await loadModuleGraph(entryURL,url=>url===entryURL?code:fetchScript(url));
+     instruction={scriptType:'module-graph',entryURL,modules:graph.modules};
+     telemetry.moduleGraphs++;telemetry.moduleDependencies+=graph.modules.length-1;
+    }
+    const ack=new Promise(resolve=>{executionResolver=resolve;});
+    send('run',instruction);
+    const ok=await Promise.race([ack,new Promise(resolve=>setTimeout(()=>resolve(false),5000))]);
+    if(!ok)telemetry.skipped++;
+   }catch(err){telemetry.skipped++;onError?.('Script skipped: '+String(err.message||err).slice(0,120));}
   }
   if(!stopped)send('lifecycle');
   return !stopped;

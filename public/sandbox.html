@@ -68,7 +68,37 @@ window.addEventListener('message',e=>{
  if(m.action==='fetch-result'){const settle=pendingFetch.get(Number(m.id));if(settle){pendingFetch.delete(Number(m.id));settle(m);}return;}
  if(m.action==='run'){
   if(typeof m.code!=='string'||m.code.length>180000)return;
-  if(m.scriptType==='module'){
+  if(m.scriptType==='module-graph'){
+   const blobURLs=new Map();
+   try{
+    if(!Array.isArray(m.modules)||m.modules.length>25)throw Error('Invalid module graph');
+    const imports=/\b(?:import\s*(?:[\w*{},\s]+\s+from\s*)?|export\s+(?:(?:\*|\{[^}]*\})\s+from\s*))(['"])([^'"\n]+)\1/g;
+    for(const record of m.modules){
+     if(typeof record.source!=='string'||record.source.length>160000)throw Error('Module size limit');
+     const replacements=[];
+     for(const match of record.source.matchAll(imports)){
+      const dependency=record.dependencies?.find(item=>item.specifier===match[2]);
+      const blob=dependency&&blobURLs.get(dependency.url);
+      if(!blob)throw Error('Unresolved module dependency');
+      const start=match.index+match[0].lastIndexOf(match[1]+match[2]+match[1])+1;
+      replacements.push({start,end:start+match[2].length,blob});
+     }
+     let source=record.source;
+     for(const replacement of replacements.reverse()){
+      source=source.slice(0,replacement.start)+replacement.blob+source.slice(replacement.end);
+     }
+     blobURLs.set(record.url,URL.createObjectURL(new Blob([source],{type:'text/javascript'})));
+    }
+    const entry=blobURLs.get(m.entryURL);
+    if(!entry)throw Error('Missing module entry');
+    import(entry).then(()=>parent.postMessage({type:'rte-executed',token,ok:true},'*'))
+     .catch(err=>parent.postMessage({type:'rte-executed',token,ok:false,error:String(err.message).slice(0,140)},'*'))
+     .finally(()=>{for(const url of blobURLs.values())URL.revokeObjectURL(url);snapshot();});
+   }catch(err){
+    for(const url of blobURLs.values())URL.revokeObjectURL(url);
+    parent.postMessage({type:'rte-executed',token,ok:false,error:String(err.message).slice(0,140)},'*');
+   }
+  }else if(m.scriptType==='module'){
    const blob=new Blob([m.code],{type:'text/javascript'}),url=URL.createObjectURL(blob);
    import(url).then(()=>parent.postMessage({type:'rte-executed',token,ok:true},'*')).catch(err=>parent.postMessage({type:'rte-executed',token,ok:false,error:String(err.message).slice(0,120)},'*')).finally(()=>URL.revokeObjectURL(url));
   }else{
