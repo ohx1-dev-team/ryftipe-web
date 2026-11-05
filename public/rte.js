@@ -2,6 +2,7 @@ import {createScriptRuntime} from '/rte-runtime.js';
 import {parseCSS,computeStyle,length as cssLength} from '/rte-css.js';
 import {createLayoutCommands,READER_CSS} from '/rte-layout.js';
 import {getFormURL} from '/rte-forms.js';
+import {createMediaLayer} from '/rte-media.js';
 // RTE Canvas layout/paint pipeline: original HTML/CSS subset; never executes remote JavaScript.
 const BLOCK=new Set('html body main section article nav header footer div p h1 h2 h3 h4 h5 h6 ul ol li blockquote pre form figure figcaption table tr td th'.split(' '));
 const OMIT=new Set('head meta link title script style noscript template'.split(' '));
@@ -10,6 +11,7 @@ const defaults={body:{'background-color':'#fff'},a:{color:'#2052af'},h1:{'font-s
 function px(value,fallback=0,base=700){return cssLength(value,fallback,base,16,typeof window!=='undefined'?window.innerWidth:base);}
 export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompatibility,javascriptEnabled=()=>true,imagesEnabled=()=>true}){
  const c=canvas.getContext('2d',{alpha:false});
+ const mediaLayer=createMediaLayer(canvas,{onError:message=>onError?.(message)});
  let url='',doc=null,rules=[],cssSource='',scroll=0,commands=[],hits=[],height=0,active=false,generation=0,history=[],position=-1;
  let pageBackground='#fff',lastWidth=0,zoom=1,lastFindIndex=-1;
  let scriptRuntime=null,scriptStatus='off';
@@ -82,15 +84,17 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
    if(v.kind==='text'){c.fillStyle=v.color;c.font=v.font;c.textBaseline='top';c.fillText(v.text,v.x,v.y);if(v.underline){c.strokeStyle=v.color;c.lineWidth=1;c.beginPath();c.moveTo(v.x,v.y+v.h-3);c.lineTo(v.x+c.measureText(v.text).width,v.y+v.h-3);c.stroke();}}
    if(v.kind==='image'){const im=images.get(v.url);if(im?.status==='ready')c.drawImage(im.bitmap,v.x,v.y,v.w,v.h);else{c.fillStyle='#e4e8f0';c.fillRect(v.x,v.y,v.w,v.h);}}
   }
-  c.restore();onStats?.({commands:commands.length,height});
+  c.restore();
+  mediaLayer.sync(commands,{scroll,zoom,viewportWidth:canvas.clientWidth,viewportHeight:canvas.clientHeight});
+  onStats?.({commands:commands.length,height});
  }
- function show(){active=true;canvas.hidden=false;layout();}
- function hide(){active=false;canvas.hidden=true;scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='paused';}
- function dispose(){scriptRuntime?.dispose();scriptRuntime=null;active=false;}
+ function show(){active=true;canvas.hidden=false;mediaLayer.show();layout();}
+ function hide(){active=false;canvas.hidden=true;mediaLayer.hide();scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='paused';}
+ function dispose(){scriptRuntime?.dispose();scriptRuntime=null;mediaLayer.dispose();active=false;}
  async function navigate(target,{replace=false}={}){
   const token=++generation;onLocation?.({url:target,loading:true});
   try{const r=await fetch('/api/rte/document?url='+encodeURIComponent(target),{cache:'no-store'}),page=await r.json();if(token!==generation)return false;if(!r.ok)throw Error(page.error||'Page load failed');
-   url=page.url;doc=page.dom;cssSource=page.css||'';lastWidth=0;rules=parseCSS(cssSource.trim()?cssSource:READER_CSS,canvas.clientWidth);scroll=0;lastFindIndex=-1;
+   url=page.url;doc=page.dom;mediaLayer.reset(url);cssSource=page.css||'';lastWidth=0;rules=parseCSS(cssSource.trim()?cssSource:READER_CSS,canvas.clientWidth);scroll=0;lastFindIndex=-1;
    scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='off';
    if(!replace){history=history.slice(0,position+1);history.push(url);position=history.length-1;}
    show();onLocation?.({url,title:page.title,loading:false});

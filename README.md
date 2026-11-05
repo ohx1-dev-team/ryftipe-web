@@ -1,4 +1,4 @@
-# Ryftipe
+# Ryftipe Web
 
 Ryftipe is an experimental browser interface with two website engines: the original Ryftipe Rendering Engine (RTE), and an optional Chromium fallback running remotely. RTE renders HTML/CSS via Canvas; Chromium sends JPEG frames via WebSocket. Neither engine is a complete replacement for a mainstream browser.
 
@@ -24,6 +24,20 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 - Start Command: `npm start`
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
+
+## v0.11.0 — RTE native-media foundation
+
+**Goal:** full-speed playback of modern video sites using the RTE engine, while preserving portability to a future desktop application. **YouTube is not yet playable in RTE.**
+
+- The original HTML parser now preserves `<video>`, `<audio>`, and nested `<source>` tags.
+- RTE's box layout produces media draw commands at document coordinates. A separate local media layer places native video/audio elements at those coordinates and adjusts them for scrolling/zoom.
+- Ordinary HTML5 media sources can play using the **client device's native decoding path**, instead of server-rendered screenshots. No YouTube iframe or separate YouTube player is used.
+- Media elements preserve supported attributes, including controls, muted, loop, preload, and poster. Unmuted autoplay is blocked. Source URLs are restricted to HTTP(S).
+- Media stops on page navigation or when leaving RTE, and existing players aren't recreated during ordinary scrolling.
+- Added `ryftipe://media` diagnostic page for media capabilities and codec support.
+- **Remaining blockers for YouTube:** full modern JavaScript/module execution, network APIs, Web Components/Shadow DOM, CSS correctness, MediaSource/streaming integration and actual video site compatibility.
+- Native video playback requires a supported codec, valid media URL and site permissions. Browser media APIs are provided by the host platform; RTE controls HTML parsing, layout, positioning and the media lifecycle.
+- No embedding, scraping YouTube streams, or claiming benchmark parity with a mainstream browser.
 
 ## v0.10.0 — RTE compatibility and browser tools capstone
 

@@ -1,5 +1,6 @@
 import {computeStyle,length as cssLength} from './rte-css.js';
 import {cssPixels,gapPixels,gridColumns,distributeTracks,trackPositions} from './rte-tracks.js';
+import {mediaSource,mediaCandidates} from './rte-media.js';
 
 // RTE block/inline layout engine. Produces deterministic draw commands; canvas paints them.
 const BLOCK=new Set('html body main section article nav header footer div p h1 h2 h3 h4 h5 h6 ul ol li blockquote pre form figure figcaption table tr td th details summary address'.split(' '));
@@ -107,6 +108,15 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
   if(border)commands.push(border);
   if(n.tag==='br')return cursorY+fs*1.3;
   if(n.tag==='hr'){commands.push({kind:'rect',x:left,y:cursorY,w:inside,h:1,color:'#c6cfdd'});return cursorY+15+mb;}
+  if(n.tag==='video'||n.tag==='audio'){
+   const mediaURL=mediaSource(n,url),candidates=mediaCandidates(n,url);
+   const mw=n.tag==='video'?640:320;
+   const mediaWidth=Math.min(inside,Math.max(80,num(n.attrs?.width||s.width,mw,inside,fs)));
+   const mediaHeight=n.tag==='video'?Math.min(900,Math.max(45,num(n.attrs?.height||s.height,mediaWidth*9/16,inside,fs))):Math.max(45,Math.min(70,num(n.attrs?.height||s.height,54,inside,fs)));
+   if(mediaURL)commands.push({kind:'media',tag:n.tag,url:mediaURL,candidates,attrs:n.attrs||{},mediaId:n.rteId??'media-'+count,x:left+pl,y:cursorY,w:mediaWidth,h:mediaHeight});
+   else commands.push({kind:'rect',x:left+pl,y:cursorY,w:mediaWidth,h:mediaHeight,color:'#111827'});
+   return cursorY+mediaHeight+pb+mb;
+  }
   if(n.tag==='img'){
    const src=absolute(n.attrs?.src||'');
    const imageWidth=Math.min(inside,Math.max(20,num(n.attrs?.width||s.width,240,inside,fs)));
@@ -160,7 +170,7 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
    if(Object.hasOwn(child,'text')){inline.push({text:child.text,style:s,href:link,nodeId});continue;}
    if(OMIT.has(child.tag))continue;
    const style=computeStyle(child,s,rules,[...ancestors,n]);
-   const childBlock=BLOCK.has(child.tag)||['img','input','textarea','button','hr'].includes(child.tag)||style.display==='block'||style.display==='flex'||style.display==='grid';
+   const childBlock=BLOCK.has(child.tag)||['img','video','audio','input','textarea','button','hr'].includes(child.tag)||style.display==='block'||style.display==='flex'||style.display==='grid';
    if(childBlock){
     flush();
     cursorY=paintNode(child,s,left+pl,cursorY,inside,[...ancestors,n],depth+1,link,nodeId,formNode);

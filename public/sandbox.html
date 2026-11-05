@@ -7,7 +7,7 @@ function pack(node,depth=0,limit={count:0}){
  if(depth>40||limit.count++>CAP)return null;
  if(node.nodeType===3)return {text:node.textContent.slice(0,4000)};
  if(node.nodeType!==1)return null;
- if(['script','style','iframe','object','embed','svg','canvas','video','audio'].includes(node.localName))return null;
+ if(['script','style','iframe','object','embed','svg','canvas'].includes(node.localName))return null;
  if(!node.__rteId)node.__rteId=++nextID;
  const attrs={};for(const a of [...node.attributes].slice(0,30))if(!a.name.startsWith('on'))attrs[a.name]=a.value.slice(0,500);
  return {tag:node.localName,rteId:node.__rteId,attrs,children:[...node.childNodes].map(n=>pack(n,depth+1,limit)).filter(Boolean)};

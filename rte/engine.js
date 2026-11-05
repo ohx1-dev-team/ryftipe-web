@@ -9,7 +9,7 @@ export function parseHTML(html){
  for(const m of html.matchAll(/<!--[\s\S]*?-->|<![^>]*>|<\/?[a-zA-Z][^>]*>|[^<]+/g)){
   const token=m[0];if(token.startsWith('<!--')||token.startsWith('<!'))continue;
   if(token.startsWith('</')){const t=token.match(/^<\/([\w:-]+)/)?.[1]?.toLowerCase();if(skip===t){skip=null;continue;}if(skip)continue;for(let i=stack.length-1;i>0;i--)if(stack[i].tag===t){stack.length=i;break;}continue;}
-  if(token.startsWith('<')){const m=token.match(/^<([\w:-]+)/);if(!m)continue;const tag=m[1].toLowerCase();if(skip)continue;if(['script','style','noscript','template'].includes(tag)){skip=tag;continue;}if(['iframe','object','embed','svg','canvas','video','audio'].includes(tag))continue;
+  if(token.startsWith('<')){const m=token.match(/^<([\w:-]+)/);if(!m)continue;const tag=m[1].toLowerCase();if(skip)continue;if(['script','style','noscript','template'].includes(tag)){skip=tag;continue;}if(['iframe','object','embed','svg','canvas'].includes(tag))continue;
    const node={tag,attrs:attrs(token.slice(m[0].length).replace(/\/?>$/,'')),children:[]};stack.at(-1).children.push(node);
    if(!VOID.has(tag)&&stack.length<60)stack.push(node);
   }else if(!skip){const text=entities(token).replace(/\s+/g,' ');if(text.trim())stack.at(-1).children.push({text:text.slice(0,4000)});}
