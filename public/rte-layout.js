@@ -105,6 +105,8 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
   const bg=background&&background!=='transparent'?{kind:'rect',x:left,y:boxY,w:inside+pl+pr,h:0,color:background,radius}:null;
   const border=borderWidth?{kind:'border',x:left,y:boxY,w:inside+pl+pr,h:0,color:borderColor,lineWidth:borderWidth,radius}:null;
   if(bg)commands.push(bg);
+  const gradient=s['background-gradient']?{kind:'gradient',x:left,y:boxY,w:inside+pl+pr,h:0,gradient:s['background-gradient']}:null;
+  if(gradient)commands.push(gradient);
   if(border)commands.push(border);
   if(n.tag==='br')return cursorY+fs*1.3;
   if(n.tag==='hr'){commands.push({kind:'rect',x:left,y:cursorY,w:inside,h:1,color:'#c6cfdd'});return cursorY+15+mb;}
@@ -159,6 +161,7 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
     }
     cursorY=rowBottom+pb;
     if(bg)bg.h=Math.max(1,cursorY-boxY);
+    if(gradient)gradient.h=Math.max(1,cursorY-boxY);
     if(border)border.h=Math.max(1,cursorY-boxY);
     return cursorY+mb;
    }
@@ -179,6 +182,7 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
   flush();
   cursorY+=pb;
   if(bg)bg.h=Math.max(1,cursorY-boxY);
+  if(gradient)gradient.h=Math.max(1,cursorY-boxY);
   if(border)border.h=Math.max(1,cursorY-boxY);
   return cursorY+mb;
  }

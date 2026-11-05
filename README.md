@@ -25,6 +25,17 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.18.0 — Modern website CSS and rendering capstone
+
+- Recursively loads bounded CSS `@import` dependencies (including CSS supplied by external stylesheets), preserves cascade order, resolves stylesheet-relative URLs, and reports per-page stylesheet successes/failures.
+- Applies `@media` conditions for viewport width, print and light/dark color scheme instead of incorrectly applying dark and print styles everywhere.
+- Adds basic `linear-gradient()` rendering on the RTE canvas. This is limited to straightforward color stops and directions, not full CSS Images Level 4.
+- Improves selector matching for `:not()`, `:is()`, `:where()`; skips unsupported hover/focus and pseudo-element rules instead of applying them unconditionally.
+- Indexes CSS rules by the final selector's ID/class/tag, raises supported rule budget, and avoids checking every style rule against every element.
+- Adds real RTE metrics for CSS rule count, text runs, gradients, and stylesheet load failures in `ryftipe://engine`.
+- Adds unit regressions for stylesheets, CSS color scheme, CSS gradients, selector matching, and a live `nohello.org` informational probe in CI.
+- Does not claim complete CSS/DOM standards compliance or YouTube playback. Both require further work.
+
 ## v0.17.0 — Integrated DOM, event and networking capstone
 
 - Adds a shared, validated **RTE event protocol** between the Canvas renderer and the sandboxed document.

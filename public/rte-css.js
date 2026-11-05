@@ -13,12 +13,41 @@ export function declarations(css){
  }
  save();return out;
 }
-export function parseCSS(input,viewportWidth=1024){
+export function mediaMatches(query,viewportWidth=1024,colorScheme='light'){
+ const parts=String(query||'').trim().toLowerCase().split(/\s*,\s*/);
+ return parts.some(part=>{
+  if(/\bprint\b/.test(part)&&!/\bnot\s+print\b/.test(part))return false;
+  const dark=part.match(/prefers-color-scheme\s*:\s*(dark|light)/);
+  if(dark&&dark[1]!==colorScheme)return false;
+  const max=part.match(/max-width\s*:\s*(\d+(?:\.\d+)?)px/);
+  const min=part.match(/min-width\s*:\s*(\d+(?:\.\d+)?)px/);
+  if(max&&viewportWidth>Number(max[1]))return false;
+  if(min&&viewportWidth<Number(min[1]))return false;
+  if(/\bnot\s+(?:all|screen)\b/.test(part))return false;
+  return true;
+ });
+}
+export function splitSelectors(header){
+ const parts=[];let depth=0,brackets=0,quote='',start=0;
+ const input=String(header||'');
+ for(let i=0;i<input.length;i++){
+  const char=input[i];
+  if(quote){if(char===quote&&input[i-1]!=='\\')quote='';continue;}
+  if(char==='"'||char==="'"){quote=char;continue;}
+  if(char==='(')depth++;else if(char===')')depth=Math.max(0,depth-1);
+  if(char==='[')brackets++;else if(char===']')brackets=Math.max(0,brackets-1);
+  if(char===','&&depth===0&&brackets===0){parts.push(input.slice(start,i).trim());start=i+1;}
+ }
+ parts.push(input.slice(start).trim());
+ return parts.filter(Boolean);
+}
+export function parseCSS(input,viewportWidth=1024,options={}){
+ const colorScheme=options?.colorScheme==='dark'?'dark':'light';
  const css=String(input||'').replace(/\/\*[\s\S]*?\*\//g,'');
  const rules=[];let order=0;
  function read(start,end){
   let i=start;
-  while(i<end&&rules.length<1500){
+  while(i<end&&rules.length<8000){
    while(i<end&&/[\s;}]/.test(css[i]))i++;
    const headerStart=i;let quote='',paren=0,terminated=false;
    while(i<end){const c=css[i];if(quote){if(c===quote)quote='';}else if(c==='"'||c==="'")quote=c;else if(c==='(')paren++;else if(c===')')paren=Math.max(0,paren-1);else if(c==='{'&&paren===0)break;else if(c===';'&&paren===0){terminated=true;i++;break;}i++;}
@@ -27,23 +56,44 @@ export function parseCSS(input,viewportWidth=1024){
    const header=css.slice(headerStart,i).trim(),open=i++;let depth=1;
    while(i<end&&depth){if(css[i]==='{')depth++;else if(css[i]==='}')depth--;i++;}
    const close=i-1;if(!header||close<=open)continue;
-   if(/^@media\b/.test(header)){const max=header.match(/max-width\s*:\s*(\d+)px/i),min=header.match(/min-width\s*:\s*(\d+)px/i);if((!max||viewportWidth<=Number(max[1]))&&(!min||viewportWidth>=Number(min[1])))read(open+1,close);continue;}
+   if(/^@media\b/.test(header)){if(mediaMatches(header.replace(/^@media\s*/i,''),viewportWidth,colorScheme))read(open+1,close);continue;}
    if(/^@(?:supports|layer|container)\b/.test(header)){read(open+1,close);continue;}
    if(header.startsWith('@'))continue;
    const props=declarations(css.slice(open+1,close));
-   for(const raw of header.split(',')){
-    const selector=raw.trim().replace(/:root\b/g,'html').replace(/::[\w-]+/g,'').replace(/:(?:hover|focus|active|visited|link|focus-visible|first-child|last-child)\b/g,'');
-    if(!selector||selector.length>170||/[+~]/.test(selector))continue;
+   for(const raw of splitSelectors(header)){
+    if(/::(?:before|after|marker)|:(?:hover|focus|active|focus-visible|first-child|last-child|nth-child|has)\b/i.test(raw))continue;
+    const selector=raw.trim().replace(/:root\b/g,'html').replace(/::[\w-]+/g,'').replace(/:(?:visited|link)\b/g,'');
+    if(!selector||selector.length>240||/[+~]/.test(selector))continue;
     rules.push({selector,props,order:order++,specificity:(selector.match(/#/g)||[]).length*100+(selector.match(/\./g)||[]).length*10+(selector.match(/(?:^|\s|>)\w/g)||[]).length});
    }
   }
  }
- read(0,css.length);return rules;
+ read(0,css.length);
+ const index={any:[],tag:new Map(),class:new Map(),id:new Map()};
+ for(const rule of rules){
+  const tail=rule.selector.trim().split(/\s*>\s*|\s+/).at(-1)?.replace(/:(?:not|is|where)\([^()]*\)/g,'');
+  const id=tail?.match(/#([\w-]+)/)?.[1];
+  const cls=tail?.match(/\.([\w-]+)/)?.[1];
+  const tag=tail?.match(/^[a-z][\w-]*/i)?.[0]?.toLowerCase();
+  let bucket=index.any;
+  if(id){if(!index.id.has(id))index.id.set(id,[]);bucket=index.id.get(id);}
+  else if(cls){if(!index.class.has(cls))index.class.set(cls,[]);bucket=index.class.get(cls);}
+  else if(tag){if(!index.tag.has(tag))index.tag.set(tag,[]);bucket=index.tag.get(tag);}
+  bucket.push(rule);
+ }
+ Object.defineProperty(rules,'rteIndex',{value:index});
+ return rules;
 }
 function matchesPart(node,part){
  if(!node||!node.tag)return false;
  part=part.trim();
- if(part==='*')return true;
+ for(const match of [...part.matchAll(/:(not|is|where)\(([^()]*)\)/g)]){
+  const choices=match[2].split(',').map(x=>x.trim()).filter(Boolean);
+  const accepted=choices.some(x=>matchesPart(node,x));
+  if(match[1]==='not'?accepted:!accepted)return false;
+ }
+ part=part.replace(/:(?:not|is|where)\([^()]*\)/g,'');
+ if(part==='*'||part==='')return true;
  const tag=part.match(/^[a-z][\w-]*/i)?.[0];if(tag&&tag.toLowerCase()!==node.tag)return false;
  const id=part.match(/#([\w-]+)/)?.[1];if(id&&node.attrs?.id!==id)return false;
  for(const m of part.matchAll(/\.([\w-]+)/g))if(!String(node.attrs?.class||'').split(/\s+/).includes(m[1]))return false;
@@ -85,10 +135,21 @@ export function computeStyle(node,parent={},rules=[],ancestors=[]){
  if(node.tag==='b'||node.tag==='strong')s['font-weight']='bold';
  if(node.tag==='small')s['font-size']='12px';
  if(node.tag==='body')s['background-color']='#fff';
- for(const rule of rules.filter(r=>matchesSelector(node,r.selector,ancestors)).sort((a,b)=>a.specificity-b.specificity||a.order-b.order))Object.assign(s,rule.props);
+ const idx=rules.rteIndex;
+ let candidates=rules;
+ if(idx){
+  const classes=String(node.attrs?.class||'').split(/\s+/).filter(Boolean);
+  candidates=[...idx.any,...(idx.tag.get(node.tag)||[]),...(idx.id.get(node.attrs?.id)||[])];
+  for(const cls of classes)candidates.push(...(idx.class.get(cls)||[]));
+  if(candidates.length>1)candidates=[...new Set(candidates)];
+ }
+ for(const rule of candidates.filter(r=>matchesSelector(node,r.selector,ancestors)).sort((a,b)=>a.specificity-b.specificity||a.order-b.order))Object.assign(s,rule.props);
  Object.assign(s,declarations(node.attrs?.style||''));
  for(const [k,v] of Object.entries(s))if(typeof v==='string'&&v.includes('var('))s[k]=v.replace(/var\((--[\w-]+)(?:,\s*([^()]+))?\)/g,(_,key,fallback)=>s[key]||fallback||'initial');
  expandBox(s,'margin');expandBox(s,'padding');
  if(s.background&&!s['background-color']&&/^(#[0-9a-f]{3,8}|rgba?\([^)]+\)|transparent)$/i.test(s.background))s['background-color']=s.background;
+ if(s.background&&/^(linear-gradient|radial-gradient)\(/i.test(s.background))s['background-image']=s.background;
+ if(s['background-image']&&/gradient\(/i.test(s['background-image']))s['background-gradient']=s['background-image'];
+ if(s['box-sizing']==='border-box')s['rte-border-box']=true;
  return s;
 }

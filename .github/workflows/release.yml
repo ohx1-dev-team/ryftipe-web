@@ -33,6 +33,9 @@ jobs:
       - name: Real YouTube RTE compatibility probe (informational)
         continue-on-error: true
         run: node tests/youtube-live.mjs
+      - name: Live nohello.org RTE rendering probe (informational)
+        continue-on-error: true
+        run: node tests/nohello-live.mjs
       - name: Read version
         id: version
         run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
