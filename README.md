@@ -25,6 +25,13 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.4.2 homepage on every launch
+
+- On initial application load, always display `ryftipe://home` rather than reopening the last internal page or loading an external URL.
+- This applies to refreshes and new sessions as well as both rendering-engine modes.
+- Other internal pages remain accessible from the address bar and UI during the running session. Reloading the application returns to Home.
+- Direct web query links (`/?page=settings` etc.) now also land on Home because startup prioritizes the homepage.
+
 ## v0.4.1 internal page routing fix
 
 - Internal pages boot without awaiting the experimental RTE module.
