@@ -16,6 +16,17 @@ const getList=(name)=>{try{const v=JSON.parse(localStorage.getItem('ryftipe.'+na
 const saveList=(name,list)=>localStorage.setItem('ryftipe.'+name,JSON.stringify(list.slice(0,200)));
 let history=getList('history'),bookmarks=getList('bookmarks');
 let browserUX=null;
+function renderBookmarksBar(){
+ const target=$('bookmark-bar-items');if(!target)return;target.replaceChildren();
+ for(const entry of bookmarks.slice(0,30)){
+  if(!/^https?:\/\//i.test(entry.url))continue;
+  const button=document.createElement('button');button.className='bookmark-chip';button.title=entry.url;
+  try{button.textContent='☆ '+(entry.title||new URL(entry.url).hostname).slice(0,34);}catch{continue;}
+  button.onclick=()=>navigate(entry.url);target.append(button);
+ }
+ if(!target.children.length){const hint=document.createElement('span');hint.className='bookmark-empty';hint.textContent='Save a website to see it here';target.append(hint);}
+}
+
 const escapeHTML=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function send(o){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(o));}
 function notice(m,ms=5000){$('notice').textContent=m;$('notice').hidden=false;clearTimeout(noticeTimeout);noticeTimeout=setTimeout(()=>$('notice').hidden=true,ms);}
@@ -23,8 +34,8 @@ function dimensions(){const r=canvas.getBoundingClientRect();return {width:Math.
 function resize(){const d=dimensions();if(canvas.width!==d.width||canvas.height!==d.height){canvas.width=d.width;canvas.height=d.height;}if(ready)send({type:'resize',...d});}
 function showBrowser(){
  $('login').hidden=true;$('browser').hidden=false;applyTheme(theme);
- browserUX=createBrowserUX({navigate,openInternal,getURL:()=>remoteURL,notice,escapeHTML,clearHistory:()=>{history=[];saveList('history',history);},clearBookmarks:()=>{bookmarks=[];saveList('bookmarks',bookmarks);}});
- browserUX.start();openInternal('home',{replace:true});initRTE();
+ browserUX=createBrowserUX({navigate,openInternal,getURL:()=>remoteURL,notice,escapeHTML,clearHistory:()=>{history=[];saveList('history',history);},clearBookmarks:()=>{bookmarks=[];saveList('bookmarks',bookmarks);renderBookmarksBar();}});
+ browserUX.start();renderBookmarksBar();openInternal('home',{replace:true});initRTE();
  if(engine==='chromium')connect();else nativeStatus();
 }
 async function checkAuth(){try{const r=await fetch('/api/auth');const v=await r.json();if(v.authenticated)showBrowser();else $('login').hidden=false;}catch{$('login').hidden=false;}}
@@ -42,7 +53,7 @@ function pageHTML(p){
  if(p==='settings')return heading('Settings','Configure your Ryftipe experience. Settings on this device are stored locally until accounts are introduced.')+(browserUX?.settingsSection()||'')+'<div class="panel"><div class="setting-row"><div><strong>RTE JavaScript</strong><small>Run classic website scripts inside a separate, sandboxed document. Modern browser APIs remain incomplete.</small></div><select id="js-select"><option value="on">Enabled (experimental)</option><option value="off">Disabled</option></select></div><div class="setting-row"><div><strong>Appearance</strong><small>Switch between dark and light browser themes.</small></div><select id="theme-select"><option value="dark">Dark</option><option value="light">Light</option></select></div><div class="setting-row"><div><strong>Rendering engine</strong><small>RTE is experimental; Chromium supports more websites.</small></div><select id="engine-select"><option value="rte">Ryftipe Engine (RTE)</option><option value="chromium">Chromium fallback</option></select></div><div class="setting-row"><div><strong>Stream quality</strong><small>Higher quality uses more bandwidth and server resources.</small></div><select id="preset-select"><option value="fast">Fast</option><option value="balanced">Balanced</option><option value="sharp">Sharp</option></select></div><div class="setting-row"><div><strong>Browser home</strong><small>Open your Ryftipe start page.</small></div><button class="minor" data-page="home">Open home</button></div></div><h2 class="section-title">Diagnostics</h2><button class="minor" data-page="gpu">View remote GPU information</button>';
  if(p==='gpu')return heading('GPU diagnostics','These are the server-side Chromium graphics capabilities, not your device GPU.')+'<div class="notice-inline">GPU acceleration depends on your Render instance and Chromium launch configuration. Software rendering is normal on some cloud hosts. This page reports detected capabilities; it does not enable GPU acceleration.</div><div class="panel" style="margin-top:18px" id="gpu-detail"><p>Loading Chromium GPU information…</p></div><h2 class="section-title">Full diagnostic data</h2><pre class="raw" id="gpu-raw">Loading…</pre><div class="page-actions"><button class="minor" id="refresh-gpu">Refresh diagnostics</button></div>';
  if(p==='javascript')return heading('JavaScript compatibility','Experimental RTE JavaScript support and limitations.')+'<div class="panel"><div class="diag"><span>Execution mode</span><strong>Sandboxed iframe with opaque origin</strong></div><div class="diag"><span>Enabled</span><strong>'+ (jsEnabled?'Yes':'No')+'</strong></div><div class="diag"><span>Current status</span><strong>'+escapeHTML(rte?.scriptStatus||'Not running')+'</strong></div><div class="diag"><span>DOM APIs</span><strong>querySelector, getElementById, createElement, classList, events, timers and mutations</strong></div><div class="diag"><span>Canvas</span><strong>Mutations repainted through RTE</strong></div><div class="diag"><span>Not supported</span><strong>fetch/XHR, modules, WebGL, video/audio, full browser APIs</strong></div></div><p class="subtle">External scripts are limited to same-origin classic JavaScript. A sandbox is not a complete security boundary; this remains an experimental implementation.</p><button class="minor" data-page="settings">Change settings</button><div class="page-actions" style="margin-top:18px"><button class="minor" id="js-self-test">Run JavaScript sandbox self-test</button></div><p id="js-test-status" class="subtle">Not tested in this session.</p>';
- if(p==='about')return heading('About Ryftipe','Independent remote browser project by OHx1.')+'<div class="panel"><div class="diag"><span>Version</span><strong>0.8.0</strong></div><div class="diag"><span>Rendering</span><strong>RTE Canvas + sandboxed JavaScript, optional Chromium fallback</strong></div><div class="diag"><span>Transport</span><strong>CDP JPEG frames over binary WebSocket</strong></div><div class="diag"><span>Audio</span><strong>Not supported yet</strong></div><div class="diag"><span>Saved profiles</span><strong>Not supported yet — no PostgreSQL integration</strong></div></div>';
+ if(p==='about')return heading('About Ryftipe','Independent remote browser project by OHx1.')+'<div class="panel"><div class="diag"><span>Version</span><strong>0.9.0</strong></div><div class="diag"><span>Rendering</span><strong>RTE Canvas + sandboxed JavaScript, optional Chromium fallback</strong></div><div class="diag"><span>Transport</span><strong>CDP JPEG frames over binary WebSocket</strong></div><div class="diag"><span>Audio</span><strong>Not supported yet</strong></div><div class="diag"><span>Saved profiles</span><strong>Not supported yet — no PostgreSQL integration</strong></div></div>';
  if(p==='help')return heading('Help & internal pages','Enter these addresses directly in the Ryftipe address bar.')+'<div class="grid">'+tiles()+'</div><p class="subtle">Internal addresses use <code>ryftipe://home</code>, <code>ryftipe://settings</code>, <code>ryftipe://gpu</code>, <code>ryftipe://bookmarks</code>, <code>ryftipe://history</code>, <code>ryftipe://about</code>, <code>ryftipe://javascript</code> and <code>ryftipe://help</code>. Ctrl+L focuses the address bar. These pages work without a remote Chromium frame.</p>';
  if(p==='history')return heading('History','Recent external pages on this device. No account sync yet.')+'<div class="page-actions"><button class="minor" id="clear-history">Clear history</button></div><div class="panel" style="margin-top:20px">'+(history.length?history.map((v,i)=>rowHTML(v,i,'history')).join(''):'<p class="subtle">No browsing history yet.</p>')+'</div>';
  if(p==='bookmarks')return heading('Bookmarks','Saved on this device, not synced across updates or devices.')+'<div class="page-actions"><button class="minor" id="add-bookmark">Bookmark current remote website</button></div><div class="panel" style="margin-top:20px">'+(bookmarks.length?bookmarks.map((v,i)=>rowHTML(v,i,'bookmarks')).join(''):'<p class="subtle">No bookmarks yet.</p>')+'</div>';
@@ -90,11 +101,11 @@ async function initRTE(){
 }
 function switchEngine(next){if(next===engine)return;engine=next;localStorage.setItem('ryftipe.engine',engine);if(engine==='chromium'){if(!ws||ws.readyState>=WebSocket.CLOSING){ready=false;connect();}$('engine-label').textContent='Chromium fallback';}else{ws?.close();initRTE();nativeStatus();$('engine-label').textContent='Ryftipe Engine';}if(!internal)navigate(remoteURL);}
 function showCompatibility(info){if(engine!=='rte'||internal||browserUX?.getFlag('compatibility-warnings')===false)return;$('compat').hidden=true;const warning=$('rte-warning');warning.hidden=false;$('rte-warning-title').textContent='Experimental RTE rendering — '+hostName(info.url||remoteURL);$('rte-warning-detail').textContent=info.attemptingScripts?'Trying supported JavaScript. Complex browser APIs, layouts and media may remain unsupported.':'JavaScript is unavailable or disabled for this page. Some features may be missing.';}
-function addBookmark(){if(!/^https?:\/\//i.test(remoteURL)){notice('Open a website first');return;}bookmarks=bookmarks.filter(x=>x.url!==remoteURL);bookmarks.unshift({url:remoteURL,title:hostName(remoteURL)});saveList('bookmarks',bookmarks);notice('Bookmarked '+hostName(remoteURL));}
+function addBookmark(){if(!/^https?:\/\//i.test(remoteURL)){notice('Open a website first');return;}bookmarks=bookmarks.filter(x=>x.url!==remoteURL);bookmarks.unshift({url:remoteURL,title:hostName(remoteURL)});saveList('bookmarks',bookmarks);renderBookmarksBar();notice('Bookmarked '+hostName(remoteURL));}
 function bindInternal(){
  $('internal-content').querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>openInternal(b.dataset.page)));
  $('internal-content').querySelectorAll('[data-go]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();navigate(a.dataset.go);}));
- $('internal-content').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{bookmarks.splice(Number(b.dataset.remove),1);saveList('bookmarks',bookmarks);openInternal('bookmarks');}));
+ $('internal-content').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{bookmarks.splice(Number(b.dataset.remove),1);saveList('bookmarks',bookmarks);renderBookmarksBar();openInternal('bookmarks');}));
  $('hero-search')?.addEventListener('submit',e=>{e.preventDefault();navigate($('hero-url').value);});
  $('preset-select')?.addEventListener('change',e=>{quality=e.target.value;localStorage.setItem('ryftipe.quality',quality);send({type:'quality',preset:quality});$('quality-label').textContent=capitalize(quality);});
  if($('preset-select'))$('preset-select').value=quality;
@@ -155,6 +166,8 @@ for(const id of ['back','forward','reload'])$(id).onclick=()=>{if(internal){if(i
 $('home').onclick=()=>openInternal('home');
 $('theme-toggle').onclick=()=>applyTheme(theme==='dark'?'light':'dark');
 $('bookmark-current').onclick=addBookmark;
+$('bookmark-bar-add').onclick=addBookmark;
+$('bookmark-bar-manage').onclick=()=>openInternal('bookmarks');
 $('compat-switch').onclick=()=>{switchEngine('chromium');};
 $('compat-home').onclick=()=>openInternal('home');
 $('rte-warning-fallback').onclick=()=>switchEngine('chromium');

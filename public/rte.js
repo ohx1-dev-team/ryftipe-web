@@ -1,5 +1,6 @@
 import {createScriptRuntime} from '/rte-runtime.js';
 import {parseCSS,computeStyle,length as cssLength} from '/rte-css.js';
+import {createLayoutCommands,READER_CSS} from '/rte-layout.js';
 // RTE Canvas layout/paint pipeline: original HTML/CSS subset; never executes remote JavaScript.
 const BLOCK=new Set('html body main section article nav header footer div p h1 h2 h3 h4 h5 h6 ul ol li blockquote pre form figure figcaption table tr td th'.split(' '));
 const OMIT=new Set('head meta link title script style noscript template'.split(' '));
@@ -58,15 +59,16 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
   return yy+px(s['margin-bottom'],isBlock?margin:0,w);
  }
  function layout(){
-  if(!doc)return;commands=[];hits=[];const w=Math.max(320,canvas.clientWidth);
-  if(w!==lastWidth){rules=parseCSS(cssSource,w);lastWidth=w;}
-  function find(n,tag){if(n?.tag===tag)return n;for(const child of n?.children||[]){const match=find(child,tag);if(match)return match;}return null;}
-  const body=find(doc,'body'),html=find(doc,'html');
-  const htmlStyle=html?computeStyle(html,base,rules,[doc]):base;
-  const bodyStyle=body?computeStyle(body,htmlStyle,rules,[doc,html].filter(Boolean)):htmlStyle;
-  pageBackground=bodyStyle['background-color']||htmlStyle['background-color']||'#fff';
-  height=renderNode(doc,base,12,14,w-24,null,0)+30;
-  scroll=Math.min(scroll,Math.max(0,height-canvas.clientHeight));paint();
+  if(!doc)return;
+  const w=Math.max(320,Math.round(canvas.clientWidth));
+  const readerMode=!cssSource.trim();
+  if(w!==lastWidth){rules=parseCSS(readerMode?READER_CSS:cssSource,w);lastWidth=w;}
+  const result=createLayoutCommands({
+    document:doc,rules,width:w,ctx:c,url,onImage:image,readerMode
+  });
+  commands=result.commands;hits=result.hits;height=result.height;pageBackground=result.background;
+  scroll=Math.min(scroll,Math.max(0,height-canvas.clientHeight));
+  paint();
  }
  function paint(){
   if(!active)return;
@@ -86,7 +88,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  async function navigate(target,{replace=false}={}){
   const token=++generation;onLocation?.({url:target,loading:true});
   try{const r=await fetch('/api/rte/document?url='+encodeURIComponent(target),{cache:'no-store'}),page=await r.json();if(token!==generation)return false;if(!r.ok)throw Error(page.error||'Page load failed');
-   url=page.url;doc=page.dom;cssSource=page.css||'';lastWidth=0;rules=parseCSS(cssSource,canvas.clientWidth);scroll=0;
+   url=page.url;doc=page.dom;cssSource=page.css||'';lastWidth=0;rules=parseCSS(cssSource.trim()?cssSource:READER_CSS,canvas.clientWidth);scroll=0;
    scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='off';
    if(!replace){history=history.slice(0,position+1);history.push(url);position=history.length-1;}
    show();onLocation?.({url,title:page.title,loading:false});

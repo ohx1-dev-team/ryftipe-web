@@ -75,3 +75,17 @@
 :root.reduce-motion *, :root.reduce-motion *::before,:root.reduce-motion *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 :root.hide-metrics #fps,:root.hide-metrics #bitrate{display:none}
 @media(max-width:600px){.tab-strip{max-width:50vw}.tab-strip .tab{min-width:90px;width:130px}.wordmark{font-size:13px}.toolbar{gap:2px}}
+
+/* Persistent bookmarks shelf */
+.bookmarks-bar{height:37px;display:flex;align-items:center;gap:6px;padding:3px 13px 5px;background:#111a30;border-top:1px solid #253756;overflow:hidden;max-width:100%}
+.bookmark-bar-items{display:flex;align-items:center;gap:5px;overflow:auto hidden;flex:1;scrollbar-width:thin}
+.bookmarks-bar button{color:#bfcef0;border:1px solid transparent;border-radius:7px;background:transparent;height:26px;flex-shrink:0;padding:3px 9px;white-space:nowrap;font-size:12px}
+.bookmarks-bar button:hover{background:#283b5e;border-color:#3a5480}
+.bookmarks-bar .bookmark-chip{max-width:185px;text-overflow:ellipsis;overflow:hidden}
+.bookmark-empty{font-size:11px;color:#7f92b6;padding:0 5px;white-space:nowrap}
+:root.hide-bookmarks-bar .bookmarks-bar{display:none}
+:root.compact-toolbar .bookmarks-bar{height:30px;padding-top:1px;padding-bottom:2px}
+:root[data-theme="light"] .bookmarks-bar{background:#e9eef8;border-color:#cad8e8}
+:root[data-theme="light"] .bookmarks-bar button{color:#344d77}
+:root[data-theme="light"] .bookmarks-bar button:hover{background:#d4e1f3;border-color:#b6c9e4}
+:root[data-theme="light"] .bookmark-empty{color:#7588a5}

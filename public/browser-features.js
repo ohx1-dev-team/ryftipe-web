@@ -6,7 +6,8 @@ export const FLAG_DEFINITIONS=Object.freeze([
  {id:'performance-stats',title:'Performance statistics',description:'Display stream FPS and RTE drawing statistics in the status bar.',default:true,restart:false},
  {id:'compact-toolbar',title:'Compact toolbar',description:'Reduce browser chrome height for smaller displays.',default:false,restart:false},
  {id:'reduce-motion',title:'Reduced interface motion',description:'Disable decorative interface transitions and animations.',default:false,restart:false},
- {id:'homepage-shortcuts',title:'Homepage shortcuts',description:'Show quick links to Ryftipe internal tools on the homepage.',default:true,restart:false}
+ {id:'homepage-shortcuts',title:'Homepage shortcuts',description:'Show quick links to Ryftipe internal tools on the homepage.',default:true,restart:false},
+ {id:'bookmarks-bar',title:'Bookmarks bar',description:'Show saved bookmarks under the address bar. Ctrl+Shift+B toggles it.',default:true,restart:false}
 ]);
 export const SEARCH_ENGINES=Object.freeze({
  duckduckgo:{name:'DuckDuckGo',template:'https://duckduckgo.com/?q=%s'},

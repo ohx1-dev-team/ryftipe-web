@@ -12,6 +12,7 @@ export function createBrowserUX({navigate,openInternal,getURL,notice,clearHistor
   document.documentElement.classList.toggle('compact-toolbar',flags['compact-toolbar']);
   document.documentElement.classList.toggle('reduce-motion',flags['reduce-motion']);
   document.documentElement.classList.toggle('hide-metrics',!flags['performance-stats']);
+  document.documentElement.classList.toggle('hide-bookmarks-bar',!flags['bookmarks-bar']);
  }
  function updateTab(url,title){const t=current();if(t){t.url=url;t.title=title||t.title;renderTabs();}}
  function renderTabs(){
@@ -26,6 +27,7 @@ export function createBrowserUX({navigate,openInternal,getURL,notice,clearHistor
  function newTab(){if(tabs.length>=10){notice('Maximum of 10 tabs per session');return;}const tab={id:++seq,url:'ryftipe://home',title:'Home'};tabs.push(tab);currentId=tab.id;openInternal('home');renderTabs();}
  function switchTab(id){if(id===currentId)return;const tab=tabs.find(t=>t.id===id);if(!tab)return;currentId=id;renderTabs();navigate(tab.url);}
  function closeTab(id){const at=tabs.findIndex(t=>t.id===id);if(at<0)return;const isCurrent=id===currentId;tabs.splice(at,1);if(!tabs.length)tabs=[{id:++seq,url:'ryftipe://home',title:'Home'}];if(isCurrent){currentId=tabs[Math.min(at,tabs.length-1)].id;navigate(current().url);}else renderTabs();}
+ function setFlag(id,value){if(!FLAG_DEFINITIONS.some(x=>x.id===id))return;flags[id]=Boolean(value);persistFlags();}
  function savePermissions(){localStorage.setItem('ryftipe.sitePermissions',JSON.stringify(sitePermissions));}
  const safe=escapeHTML;
  const header=(title,description)=>'<div class="eyebrow">Ryftipe internal</div><h1 class="page-heading">'+title+'</h1><p class="subtle">'+description+'</p>';
@@ -68,10 +70,10 @@ export function createBrowserUX({navigate,openInternal,getURL,notice,clearHistor
   document.addEventListener('keydown',e=>{
    if(!(e.ctrlKey||e.metaKey))return;
    const key=e.key.toLowerCase();
-   if(key==='t'){e.preventDefault();newTab();}
+   if(key==='b'&&e.shiftKey){e.preventDefault();setFlag('bookmarks-bar',!flags['bookmarks-bar']);}else if(key==='t'){e.preventDefault();newTab();}
    else if(key==='w'){e.preventDefault();closeTab(currentId);}
    else if(key==='tab'){e.preventDefault();const at=tabs.findIndex(t=>t.id===currentId);switchTab(tabs[(at+(e.shiftKey?-1:1)+tabs.length)%tabs.length].id);}
   });
  }
- return {start,updateTab,pageHTML,settingsSection,bindPage,normalizeNavigation:input=>normalizeNavigation(input,searchEngine),getFlag:id=>Boolean(flags[id]),allowJavascript:(href,enabled)=>flags['rte-scripts']&&getSiteJavascript(sitePermissions,href,enabled),shouldSaveHistory:()=>saveHistory};
+ return {start,updateTab,pageHTML,settingsSection,bindPage,normalizeNavigation:input=>normalizeNavigation(input,searchEngine),getFlag:id=>Boolean(flags[id]),setFlag,allowJavascript:(href,enabled)=>flags['rte-scripts']&&getSiteJavascript(sitePermissions,href,enabled),shouldSaveHistory:()=>saveHistory};
 }

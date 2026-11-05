@@ -25,6 +25,15 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.9.0 — Bookmarks bar and RTE layout repair
+
+- Persistent bookmark shelf below the address bar. Star button saves the current website, saved sites open on click, and the trailing menu opens bookmark management.
+- `Ctrl+Shift+B` toggles the shelf through the `bookmarks-bar` flag on `ryftipe://flags`.
+- The RTE canvas renderer now uses a separate, testable layout stage that generates box and inline text draw commands. Adjacent inline elements share line boxes instead of always starting new lines; long words wrap.
+- Improved basic block spacing and alignment, CSS box backgrounds, responsive widths, and text styles.
+- Unstyled HTML pages receive an optional basic reader presentation rather than a blank white sheet; this is an approximation, not native browser-equivalent CSS.
+- Existing tabs remain lightweight navigation tabs, not concurrently active site sessions.
+
 ## v0.8.0 — Browser foundations capstone (Brave-inspired UX)
 
 - **ryftipe://flags:** searchable experimental flag controls, explicit defaults, persistent local values, reset-all, and live application of supported options. These are Ryftipe flags—not Chromium internals.
