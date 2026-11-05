@@ -10,6 +10,6 @@ test('rich dynamic page heuristic',()=>{assert.equal(/^(?:www\.|m\.)?(?:youtube\
 
 test('classic inline and external script discovery',()=>{
  const html='<script>document.querySelector("#app").textContent="OK";</script><script defer src="/ui.js"></script><script type="module">import x from "x"</script>';
- assert.deepEqual(scriptsFrom(html),[{inline:'document.querySelector("#app").textContent="OK";'},{src:'/ui.js'}]);
+ assert.deepEqual(scriptsFrom(html),[{kind:'classic',inline:'document.querySelector("#app").textContent="OK";'},{kind:'classic',src:'/ui.js'},{kind:'module',inline:'import x from "x"'}]);
 });
-test('script extraction cap',()=>{const x=Array.from({length:18},(_,i)=>'<script>window.x='+i+'</script>').join('');assert.equal(scriptsFrom(x).length,8);});
+test('script extraction cap',()=>{const x=Array.from({length:18},(_,i)=>'<script>window.x='+i+'</script>').join('');assert.equal(scriptsFrom(x).length,18);});

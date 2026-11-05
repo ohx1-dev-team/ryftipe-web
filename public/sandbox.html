@@ -1,6 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><title>Ryftipe isolated JS engine</title></head><body><script>
 'use strict';
-let token='',active=false,nextID=0,scheduled=false;
+let token='',active=false,nextID=0,scheduled=false,pageURL='',fetchSequence=0;
+const pendingFetch=new Map();
 const CAP=1800;
 const observer=new MutationObserver(()=>{if(active&&!scheduled){scheduled=true;setTimeout(()=>{scheduled=false;snapshot();},110);}});
 function pack(node,depth=0,limit={count:0}){
@@ -13,7 +14,10 @@ function pack(node,depth=0,limit={count:0}){
  return {tag:node.localName,rteId:node.__rteId,attrs,children:[...node.childNodes].map(n=>pack(n,depth+1,limit)).filter(Boolean)};
 }
 function snapshot(){if(active){const body=pack(document.body);parent.postMessage({type:'rte-snapshot',token,body,title:document.title},'*');}}
-function mount(tree,title){
+function mount(tree,title,url){
+ pageURL=String(url||'');
+ for(const settle of pendingFetch.values())settle({error:'Navigation cancelled'});
+ pendingFetch.clear();
  active=false;observer.disconnect();document.body.replaceChildren();
  document.title=String(title||'RTE').slice(0,120);nextID=0;
  function make(node,depth=0){
@@ -32,15 +36,39 @@ function mount(tree,title){
  add(tree);active=true;observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true});snapshot();
 }
 function byId(id){const queue=[document.body];let steps=0;while(queue.length&&steps++<CAP*2){const el=queue.shift();if(el.__rteId===id)return el;queue.push(...el.children);}return null;}
+// A restricted fetch bridge for basic site JSON/text APIs. No credentials or POST.
+window.fetch=(input,options={})=>{
+ const method=String(options?.method||'GET').toUpperCase();
+ if(method!=='GET')return Promise.reject(new TypeError('RTE network bridge currently supports GET only'));
+ const raw=typeof input==='string'?input:input?.url;
+ let absolute;
+ try{absolute=new URL(String(raw),pageURL);if(absolute.origin!==new URL(pageURL).origin)throw Error('Cross-origin request');}
+ catch{return Promise.reject(new TypeError('RTE only allows same-origin requests'));}
+ return new Promise((resolve,reject)=>{
+  const id=++fetchSequence;
+  pendingFetch.set(id,result=>{
+   if(result.error){reject(new TypeError(result.error));return;}
+   resolve(new Response(result.body,{status:result.status||200,headers:{'Content-Type':result.type||'text/plain'}}));
+  });
+  parent.postMessage({type:'rte-fetch',token,id,url:absolute.href,method},'*');
+  setTimeout(()=>{if(pendingFetch.has(id)){pendingFetch.delete(id);reject(new TypeError('RTE request timed out'));}},13000);
+ });
+};
 window.addEventListener('message',e=>{
  if(e.source!==parent)return;
  const m=e.data;if(!m||m.type!=='rte-command'||typeof m.token!=='string'||m.token.length>90)return;
- if(m.action==='load'){token=m.token;mount(m.tree,m.title);parent.postMessage({type:'rte-ready',token},'*');return;}
+ if(m.action==='load'){token=m.token;mount(m.tree,m.title,m.url);parent.postMessage({type:'rte-ready',token},'*');return;}
  if(!active||m.token!==token)return;
+ if(m.action==='fetch-result'){const settle=pendingFetch.get(Number(m.id));if(settle){pendingFetch.delete(Number(m.id));settle(m);}return;}
  if(m.action==='run'){
   if(typeof m.code!=='string'||m.code.length>180000)return;
-  try{const s=document.createElement('script');s.textContent=m.code;document.body.append(s);s.remove();parent.postMessage({type:'rte-executed',token,ok:true},'*');}
-  catch(err){parent.postMessage({type:'rte-executed',token,ok:false,error:String(err.message).slice(0,120)},'*');}
+  if(m.scriptType==='module'){
+   const blob=new Blob([m.code],{type:'text/javascript'}),url=URL.createObjectURL(blob);
+   import(url).then(()=>parent.postMessage({type:'rte-executed',token,ok:true},'*')).catch(err=>parent.postMessage({type:'rte-executed',token,ok:false,error:String(err.message).slice(0,120)},'*')).finally(()=>URL.revokeObjectURL(url));
+  }else{
+   try{const s=document.createElement('script');s.textContent=m.code;document.body.append(s);s.remove();parent.postMessage({type:'rte-executed',token,ok:true},'*');}
+   catch(err){parent.postMessage({type:'rte-executed',token,ok:false,error:String(err.message).slice(0,120)},'*');}
+  }
   snapshot();
  } else if(m.action==='lifecycle'){
   document.dispatchEvent(new Event('DOMContentLoaded',{bubbles:true}));

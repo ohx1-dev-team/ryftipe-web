@@ -24,6 +24,12 @@ jobs:
           node-version: '22'
       - name: Test original Ryftipe engine
         run: npm test
+      - name: Install browser smoke dependencies
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Browser-level RTE smoke test
+        run: node tests/browser-smoke.mjs
       - name: Read version
         id: version
         run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"

@@ -14,7 +14,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  const mediaLayer=createMediaLayer(canvas,{onError:message=>onError?.(message)});
  let url='',doc=null,rules=[],cssSource='',scroll=0,commands=[],hits=[],height=0,active=false,generation=0,history=[],position=-1;
  let pageBackground='#fff',lastWidth=0,zoom=1,lastFindIndex=-1;
- let scriptRuntime=null,scriptStatus='off';
+ let scriptRuntime=null,scriptStatus='off',lastScriptMetrics={};
  const images=new Map();let repaintTimer=0;
  function style(n,parent,ancestors){return computeStyle(n,parent,rules,ancestors);}
  function font(s){const z=Math.min(52,Math.max(10,px(s['font-size'],16)));return {size:z,value:(s['font-weight']==='bold'||parseInt(s['font-weight'])>=600?'bold ':'')+z+'px '+(s['font-family']==='monospace'?'monospace':'Arial')};}
@@ -95,7 +95,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
   const token=++generation;onLocation?.({url:target,loading:true});
   try{const r=await fetch('/api/rte/document?url='+encodeURIComponent(target),{cache:'no-store'}),page=await r.json();if(token!==generation)return false;if(!r.ok)throw Error(page.error||'Page load failed');
    url=page.url;doc=page.dom;mediaLayer.reset(url);cssSource=page.css||'';lastWidth=0;rules=parseCSS(cssSource.trim()?cssSource:READER_CSS,canvas.clientWidth);scroll=0;lastFindIndex=-1;
-   scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='off';
+   lastScriptMetrics=scriptRuntime?.metrics||lastScriptMetrics;scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='off';
    if(!replace){history=history.slice(0,position+1);history.push(url);position=history.length-1;}
    show();onLocation?.({url,title:page.title,loading:false});
    if(page.compatibility?.javascriptRequired)onCompatibility?.({...page.compatibility,url:page.url,attemptingScripts:Boolean(page.scripts?.length&&javascriptEnabled())});
@@ -105,7 +105,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
      onError:msg=>{if(token===generation)onError?.(msg);}
     });
     const running=scriptRuntime;scriptStatus='loading';
-    running.load(page).then(()=>{if(token===generation)scriptStatus='ready';}).catch(e=>{if(token===generation){scriptStatus='failed';onError?.('RTE JavaScript: '+e.message);}});
+    running.load(page).then(()=>{if(token===generation){scriptStatus='ready';lastScriptMetrics=running.metrics;}}).catch(e=>{if(token===generation){scriptStatus='failed';lastScriptMetrics=running.metrics;onError?.('RTE JavaScript: '+e.message);}});
    }
    return true;
   }catch(e){if(token===generation)onError?.(e.message);return false;}
@@ -132,5 +132,5 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  canvas.addEventListener('click',e=>{if(!active)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*canvas.width/zoom,y=(e.clientY-r.top)/r.height*canvas.height/zoom+scroll;const v=hits.findLast(v=>x>=v.x&&x<v.x+v.w&&y>=v.y&&y<v.y+v.h);if(!v)return;
   if(scriptRuntime?.active&&v.nodeId){scriptRuntime.event(v.nodeId);if(!v.url&&!v.submit&&!v.input)return;}
   if(v.url)onNavigate?.(v.url);else if(v.submit&&v.form){try{onNavigate?.(getFormURL(url,v.form,v.submit));}catch(err){onError?.(err.message);}}else if(v.input){const answer=prompt('Enter value',v.input.attrs.value||'');if(answer!==null){v.input.attrs.value=answer;layout();}}});
- return {navigate,back,forward,reload,show,hide,dispose,resize:layout,setZoom,findText,get zoom(){return zoom;},get active(){return active;},get url(){return url;},get scriptStatus(){return scriptStatus;},get stats(){return {commands:commands.length,documentHeight:height,zoom,scriptStatus};}};
+ return {navigate,back,forward,reload,show,hide,dispose,resize:layout,setZoom,findText,get zoom(){return zoom;},get active(){return active;},get url(){return url;},get scriptStatus(){return scriptStatus;},get stats(){return {commands:commands.length,documentHeight:height,zoom,scriptStatus,scriptMetrics:scriptRuntime?.metrics||lastScriptMetrics};}};
 }

@@ -25,6 +25,16 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.12.0 — RTE script and networking foundation
+
+- RTE now extracts classic scripts **and ES modules** with an explicit execution type and increased bounded script budget.
+- Experimental support for **import-free ES modules** via the opaque-origin JavaScript sandbox, alongside classic scripts. Module imports, dynamic imports, framework bundles and large script trees are not supported.
+- Sandboxed website JavaScript can call `fetch()` for **same-origin GET JSON/text** through a bounded server resource handler. Methods other than GET, cross-origin requests, credentials and arbitrary binary responses are intentionally unsupported.
+- New `rte-platform.js` centralizes request restrictions and script classification for unit testing. The RTE engine's diagnostics show executed, skipped and failed scripts and data-request counts.
+- Added automated browser smoke coverage for sandboxed script execution and the limited network bridge, in addition to unit tests. **This is not a YouTube playback test.**
+- The site remains an experimental engine. It does **not** yet run YouTube: full module resolution, DOM/Shadow DOM correctness, streaming APIs and browser-level performance remain missing.
+- The server's public URL checks are not hardened against DNS rebinding; do not deploy an unprotected proxy or assume safe production isolation.
+
 ## v0.11.0 — RTE native-media foundation
 
 **Goal:** full-speed playback of modern video sites using the RTE engine, while preserving portability to a future desktop application. **YouTube is not yet playable in RTE.**

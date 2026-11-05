@@ -1,5 +1,6 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import {classifyScript,limitScriptEntries} from '../public/rte-platform.js';
 // RTE tokenizer / DOM tree builder. This engine never evaluates website scripts.
 const VOID=new Set('area base br col embed hr img input link meta param source track wbr'.split(' '));
 export function entities(s){return String(s).replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);?/gi,(_,v)=>{if(v[0]==='#'){const n=v[1]?.toLowerCase()==='x'?parseInt(v.slice(2),16):parseInt(v.slice(1),10);return n>0&&n<=0x10ffff?String.fromCodePoint(n):'�';}return {amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '}[v.toLowerCase()]||'&'+v+';';});}
@@ -23,24 +24,23 @@ function publicIP(ip){if(net.isIP(ip)===4){const p=ip.split('.').map(Number);ret
 async function checked(raw){const u=validateURL(raw);const ips=await dns.lookup(u.hostname,{all:true});if(!ips.length||!ips.every(x=>publicIP(x.address)))throw Error('Private IP blocked');return u;}
 export async function fetchResource(raw,kind='html'){
  for(let i=0;i<4;i++){
-  const u=await checked(raw);const r=await fetch(u,{redirect:'manual',signal:AbortSignal.timeout(12000),headers:{Accept:kind==='html'?'text/html':kind==='css'?'text/css':kind==='script'?'text/javascript,application/javascript':'image/*','User-Agent':'RyftipeEngine/0.4'}});
+  const u=await checked(raw);const r=await fetch(u,{redirect:'manual',signal:AbortSignal.timeout(12000),headers:{Accept:kind==='html'?'text/html':kind==='css'?'text/css':kind==='script'?'text/javascript,application/javascript':kind==='data'?'application/json,text/plain,text/html,application/xml,*/*':'image/*','User-Agent':'RyftipeEngine/0.4'}});
   if([301,302,303,307,308].includes(r.status)){const loc=r.headers.get('location');await r.body?.cancel();if(!loc)throw Error('Invalid redirect');raw=new URL(loc,u).href;continue;}
   if(!r.ok)throw Error('HTTP '+r.status);
   const type=(r.headers.get('content-type')||'').toLowerCase();
-  if(kind==='html'&&!/text\/html|application\/xhtml\+xml/.test(type)||kind==='css'&&!type.includes('text/css')||kind==='script'&&!/(javascript|ecmascript|text\/plain)/.test(type)||kind==='image'&&!/^image\/(png|jpeg|webp|gif|avif|bmp)/.test(type))throw Error('Unsupported content type');
-  const limit=kind==='html'?1200000:kind==='css'?300000:kind==='script'?140000:800000,reader=r.body.getReader();let len=0;const chunks=[];
+  if(kind==='html'&&!/text\/html|application\/xhtml\+xml/.test(type)||kind==='css'&&!type.includes('text/css')||kind==='script'&&!/(javascript|ecmascript|text\/plain)/.test(type)||kind==='data'&&!/(?:^text\/|json|xml|javascript)/.test(type)||kind==='image'&&!/^image\/(png|jpeg|webp|gif|avif|bmp)/.test(type))throw Error('Unsupported content type');
+  const limit=kind==='html'?1200000:kind==='css'?300000:kind==='script'?160000:kind==='data'?524288:800000,reader=r.body.getReader();let len=0;const chunks=[];
   try{while(true){const {value,done}=await reader.read();if(done)break;len+=value.length;if(len>limit)throw Error('Resource too large');chunks.push(value);}}finally{reader.cancel().catch(()=>{});}
   return {url:u.href,body:Buffer.concat(chunks),type};
  }
  throw Error('Too many redirects');
 }
 export function scriptsFrom(html){
- return [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
+ const entries=[...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
   .map(m=>({attributes:attrs(m[1]),inline:m[2]}))
-  .filter(s=>!s.attributes.type||/^(text\/javascript|application\/javascript)$/.test(s.attributes.type))
-  .slice(0,8)
-  .map(s=>s.attributes.src?{src:s.attributes.src}:{inline:s.inline.slice(0,140000)})
-  .filter(s=>s.src||s.inline?.trim());
+  .map(s=>({kind:classifyScript(s.attributes),src:s.attributes.src,inline:s.inline}))
+  .filter(s=>s.kind&&(s.src||s.inline?.trim()));
+ return limitScriptEntries(entries,20);
 }
 export async function loadPage(raw){
  const page=await fetchResource(raw,'html'),html=page.body.toString('utf8'),styles=stylesFrom(html);let css=styles.inline;
@@ -50,5 +50,5 @@ export async function loadPage(raw){
  const heavySite=/^(?:www\.|m\.)?(?:youtube\.com|youtu\.be|google\.com|facebook\.com|instagram\.com|tiktok\.com|netflix\.com|discord\.com)$/.test(new URL(page.url).hostname);
  const dynamic=heavySite||(scriptCount>=15&&(appHints||scriptCount>=28));
  const scripts=scriptsFrom(html);
- return {url:page.url,title:entities(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,380000),scripts,engine:'RTE/0.7',compatibility:{javascriptRequired:dynamic,scriptCount,reason:dynamic?'This site depends on JavaScript and browser APIs that RTE does not implement.':'Experimental HTML/CSS support.'}};
+ return {url:page.url,title:entities(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,380000),scripts,engine:'RTE/0.12',compatibility:{javascriptRequired:dynamic,scriptCount,reason:dynamic?'This site depends on JavaScript and browser APIs that RTE does not implement.':'Experimental HTML/CSS support.'}};
 }
