@@ -60,6 +60,7 @@ try{
  assert.equal(result.loaded,true,'The sandbox must finish loading');
  await page.waitForFunction(()=>window.__snapshots?.some(s=>s.includes('network-ok')),null,{timeout:10000});
  const outcome=await page.evaluate(()=>({snapshots:window.__snapshots.slice(-3),errors:window.__errors,metrics:window.__rte.metrics}));
+ console.log('MODULE_GRAPH_DEBUG '+JSON.stringify({metrics:outcome.metrics,errors:outcome.errors,snapshots:outcome.snapshots}));
  assert.equal(outcome.metrics.executed,5,'Classic and module scripts must execute');
  assert.ok(outcome.metrics.networkRequests>=1,'The fetch bridge should receive a request');
  assert.equal(outcome.metrics.networkFailures,0);
