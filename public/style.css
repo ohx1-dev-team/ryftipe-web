@@ -37,3 +37,15 @@
 :root[data-theme="light"] .compat-card{background:#fff;border-color:#c7d6ef;box-shadow:0 20px 50px #788db12e}
 :root[data-theme="light"] .compat-card p{color:#597094}
 @media(max-width:600px){.compat-card{padding:30px 18px}}
+
+#rte-warning{position:absolute;top:114px;left:50%;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:13px;width:min(800px,calc(100% - 28px));padding:11px 14px;border:1px solid #a17a43;border-radius:12px;background:#2a263a;color:#f9e8c9;box-shadow:0 14px 35px #0007}
+#rte-warning[hidden]{display:none}
+.rte-warning-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:5px}
+.rte-warning-copy strong{font-size:12px}
+.rte-warning-copy span{font-size:11px;line-height:1.4;color:#dac8a8}
+#rte-warning button{flex-shrink:0;border:1px solid #a48555;border-radius:8px;background:#5e4d34;color:#fff4d8;padding:9px 11px;font-size:11px}
+#rte-warning-dismiss{font-size:20px!important;background:transparent!important;border:0!important}
+:root[data-theme="light"] #rte-warning{background:#fff8e9;color:#513c1c;border-color:#d3b079;box-shadow:0 12px 30px #54688736}
+:root[data-theme="light"] .rte-warning-copy span{color:#6a552c}
+:root[data-theme="light"] #rte-warning button{background:#f1e1bd;color:#563e21}
+@media(max-width:620px){#rte-warning{top:107px;flex-wrap:wrap}}

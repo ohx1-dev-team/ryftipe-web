@@ -17,7 +17,7 @@ export function parseHTML(html){
  }
  return root;
 }
-export function stylesFrom(html){return {inline:[...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map(x=>x[1]).join('\n').slice(0,160000),links:[...html.matchAll(/<link\b([^>]+)>/gi)].map(x=>attrs(x[1])).filter(x=>(x.rel||'').includes('stylesheet')&&x.href).slice(0,3).map(x=>x.href)};}
+export function stylesFrom(html){return {inline:[...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map(x=>x[1]).join('\n').slice(0,160000),links:[...html.matchAll(/<link\b([^>]+)>/gi)].map(x=>attrs(x[1])).filter(x=>(x.rel||'').includes('stylesheet')&&x.href).slice(0,8).map(x=>x.href)};}
 export function validateURL(raw){const u=new URL(raw);if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.port&&![80,443].includes(+u.port))throw Error('Only public HTTP(S) URLs');const h=u.hostname.toLowerCase();if(h==='localhost'||/\.(local|internal|test|invalid|localhost)$/.test(h))throw Error('Private hostname');return u;}
 function publicIP(ip){if(net.isIP(ip)===4){const p=ip.split('.').map(Number);return !(p[0]===0||p[0]===10||p[0]===127||p[0]>=224||(p[0]===169&&p[1]===254)||(p[0]===172&&p[1]>=16&&p[1]<=31)||(p[0]===192&&(p[1]===168||p[1]===0))||(p[0]===100&&p[1]>=64&&p[1]<=127));}if(net.isIP(ip)===6){const v=ip.toLowerCase();if(v.startsWith('::ffff:'))return publicIP(v.slice(7));return !(v==='::'||v==='::1'||v.startsWith('fc')||v.startsWith('fd')||/^fe[89ab]/.test(v)||v.startsWith('ff'));}return false;}
 async function checked(raw){const u=validateURL(raw);const ips=await dns.lookup(u.hostname,{all:true});if(!ips.length||!ips.every(x=>publicIP(x.address)))throw Error('Private IP blocked');return u;}
@@ -28,7 +28,7 @@ export async function fetchResource(raw,kind='html'){
   if(!r.ok)throw Error('HTTP '+r.status);
   const type=(r.headers.get('content-type')||'').toLowerCase();
   if(kind==='html'&&!/text\/html|application\/xhtml\+xml/.test(type)||kind==='css'&&!type.includes('text/css')||kind==='script'&&!/(javascript|ecmascript|text\/plain)/.test(type)||kind==='image'&&!/^image\/(png|jpeg|webp|gif|avif|bmp)/.test(type))throw Error('Unsupported content type');
-  const limit=kind==='html'?1200000:kind==='css'?160000:kind==='script'?140000:800000,reader=r.body.getReader();let len=0;const chunks=[];
+  const limit=kind==='html'?1200000:kind==='css'?300000:kind==='script'?140000:800000,reader=r.body.getReader();let len=0;const chunks=[];
   try{while(true){const {value,done}=await reader.read();if(done)break;len+=value.length;if(len>limit)throw Error('Resource too large');chunks.push(value);}}finally{reader.cancel().catch(()=>{});}
   return {url:u.href,body:Buffer.concat(chunks),type};
  }
@@ -44,11 +44,11 @@ export function scriptsFrom(html){
 }
 export async function loadPage(raw){
  const page=await fetchResource(raw,'html'),html=page.body.toString('utf8'),styles=stylesFrom(html);let css=styles.inline;
- for(const href of styles.links){try{const u=new URL(href,page.url);if(u.origin!==new URL(page.url).origin)continue;css+='\n'+(await fetchResource(u.href,'css')).body.toString('utf8');}catch{}}
+ for(const href of styles.links){try{const u=new URL(href,page.url);css+='\n'+(await fetchResource(u.href,'css')).body.toString('utf8');}catch{}}
  const scriptCount=(html.match(/<script\b/gi)||[]).length;
  const appHints=/<(?:div|main)[^>]+(?:id|class)=["'][^"']*(?:root|app|__next|__nuxt|yt-app|ytd-app)/i.test(html);
  const heavySite=/^(?:www\.|m\.)?(?:youtube\.com|youtu\.be|google\.com|facebook\.com|instagram\.com|tiktok\.com|netflix\.com|discord\.com)$/.test(new URL(page.url).hostname);
  const dynamic=heavySite||(scriptCount>=15&&(appHints||scriptCount>=28));
  const scripts=scriptsFrom(html);
- return {url:page.url,title:entities(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,160000),scripts,engine:'RTE/0.6',compatibility:{javascriptRequired:dynamic,scriptCount,reason:dynamic?'This site depends on JavaScript and browser APIs that RTE does not implement.':'Experimental HTML/CSS support.'}};
+ return {url:page.url,title:entities(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,380000),scripts,engine:'RTE/0.7',compatibility:{javascriptRequired:dynamic,scriptCount,reason:dynamic?'This site depends on JavaScript and browser APIs that RTE does not implement.':'Experimental HTML/CSS support.'}};
 }

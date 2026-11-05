@@ -25,6 +25,14 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.7.0 — CSS and compatibility improvements
+
+- Fixes CSS rendering in RTE with separate CSS parsing, selector matching (including descendants), specificity/cascade, inherited styles, basic CSS variables, CSS lengths and box spacing.
+- External public HTTPS/HTTP stylesheets are fetched through guarded RTE resources, including CDNs; limited to eight stylesheets and a combined 380 KB.
+- Removes the hard-coded JavaScript-heavy-site stop. RTE now **attempts** those websites, including YouTube, with a nonblocking compatibility warning and fallback option.
+- Basic viewport-width media queries and page background painting are supported. Flexbox, Grid, CSS animations, many pseudo-selectors, JS framework APIs, YouTube media playback, WebGL and audio remain incomplete.
+- The original engine is still experimental. Network-layer egress filtering is required before exposing RTE publicly.
+
 ## v0.6.0 — Experimental JavaScript compatibility
 
 - RTE can execute a limited number of classic scripts in a sandboxed, opaque-origin iframe. Site JavaScript runs in the host browser's JavaScript engine, **never** in Ryftipe's privileged page or Node server.
