@@ -49,8 +49,10 @@ try{
  });
  console.log('RTE runtime after load:',JSON.stringify(result));
  console.log('RTE snapshot sample:',JSON.stringify(await page.evaluate(()=>window.__snapshots?.slice(-5))));
+ const frame=page.frames().find(f=>f.url().endsWith('/sandbox.html'));
+ console.log('Sandbox diagnostic:',JSON.stringify(await frame.evaluate(()=>({pending:[...pendingFetch.keys()],active,pageURL,content:document.body.textContent,hasResponse:typeof Response}))));
  assert.equal(result.loaded,true,'The sandbox must finish loading');
- await page.waitForFunction(()=>window.__snapshots?.some(s=>s.includes('network-ok')),null,{timeout:7000});
+ await page.waitForFunction(()=>window.__snapshots?.some(s=>s.includes('network-ok')),null,{timeout:4000});
  const outcome=await page.evaluate(()=>({snapshots:window.__snapshots.slice(-3),errors:window.__errors,metrics:window.__rte.metrics}));
  assert.equal(outcome.metrics.executed,3,'Classic and module scripts must execute');
  assert.ok(outcome.metrics.networkRequests>=1,'The fetch bridge should receive a request');
