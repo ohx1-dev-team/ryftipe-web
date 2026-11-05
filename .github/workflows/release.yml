@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Read version
         id: version
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
       - name: Publish release when version is new
         env:
           GH_TOKEN: ${{ github.token }}

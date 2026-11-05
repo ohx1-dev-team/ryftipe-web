@@ -1,3 +1,26 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ryftipe</title><link rel="stylesheet" href="/style.css"></head>
-<body><section id="login" class="login" hidden><div class="login-box"><div class="brand">◈ Ryftipe</div><p>Remote Chromium · v0.1.2</p><form id="login-form"><input id="password" type="password" placeholder="Access password" required autocomplete="current-password"><button>Open browser</button></form><p id="login-error" class="error"></p></div></section>
-<div id="browser" hidden><header><div class="tabs"><div class="tab">◈ &nbsp; Ryftipe <span>×</span></div><div class="version">v0.1.2</div></div><div class="toolbar"><button id="back" title="Back">←</button><button id="forward" title="Forward">→</button><button id="reload" title="Reload">↻</button><form id="url-form"><span>◎</span><input id="url" spellcheck="false" autocomplete="off" aria-label="Website address" value="https://example.com"></form><button id="disconnect" title="Sign out">⏻</button></div></header><div id="status">Connecting to Chromium…</div><main id="screen"><img id="frame" alt="Remote Chromium browser screen" draggable="false" tabindex="0"></main><footer><span id="connection">● Connecting</span><span>Remote Chromium · Ryftipe OHx1</span></footer></div><script src="/app.js" type="module"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#0b1124"><title>Ryftipe</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<section id="login" class="login" hidden><div class="login-box"><div class="logo">◈</div><h1>Welcome to Ryftipe</h1><p>Enter your private access password to continue.</p><form id="login-form"><input id="password" type="password" placeholder="Access password" autocomplete="current-password" required><button type="submit">Continue</button></form><p id="login-error" class="error"></p></div></section>
+<div id="browser" hidden>
+<header>
+  <div class="titlebar"><div class="wordmark"><span class="mark">◈</span><span>ryftipe</span></div><div class="tab active"><span class="tab-dot">●</span><span id="tab-title">New tab</span></div><div class="title-spacer"></div><div class="version">OHx1 · v0.2.0</div></div>
+  <div class="toolbar">
+    <button class="nav" id="back" title="Go back" aria-label="Back">←</button>
+    <button class="nav" id="forward" title="Go forward" aria-label="Forward">→</button>
+    <button class="nav" id="reload" title="Reload" aria-label="Reload">↻</button>
+    <form id="url-form"><span class="security-icon">◎</span><input id="url" autocomplete="off" spellcheck="false" aria-label="Address bar" placeholder="Search or enter URL"><span class="address-hint">↵</span></form>
+    <button class="nav" id="home" title="Home" aria-label="Home">⌂</button>
+    <button class="nav" id="settings-toggle" title="Stream settings" aria-label="Stream settings">⚙</button>
+  </div>
+  <div id="settings-panel" hidden><div class="panel-header"><strong>Stream quality</strong><span>Ryftipe remote display</span></div><div class="presets"><button data-preset="fast">Fast <small>Lower bandwidth</small></button><button data-preset="balanced" class="selected">Balanced <small>Recommended</small></button><button data-preset="sharp">Sharp <small>Highest clarity</small></button></div><p>Actual frame rate depends on server capacity, page rendering and network conditions. Sound is not yet supported.</p></div>
+</header>
+<div id="notice" hidden></div>
+<main id="viewport">
+  <div id="waiting"><div class="spinner"></div><strong>Starting remote Chromium</strong><span>Connecting your session…</span></div>
+  <canvas id="screen" tabindex="0" aria-label="Remote browser display"></canvas>
+</main>
+<footer><div class="status-left"><span class="light"></span><span id="connection">Connecting</span><span class="separator">/</span><span id="fps">— FPS</span><span class="separator">/</span><span id="bitrate">— kbps</span></div><div class="footer-right"><span id="quality-label">Balanced</span><span class="separator">·</span><span>Chromium remote</span></div></footer>
+</div><script src="/app.js" type="module"></script>
+</body></html>

@@ -25,6 +25,16 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.2.0 capstone: quality and interface
+
+- Chromium DevTools Protocol screencasting replaces the slow polling screenshot loop.
+- Binary WebSocket frames remove the Base64-JSON overhead between server and client.
+- High-quality JPEG presets: Fast (62, 85% dimensions), Balanced (82), Sharp (92).
+- Per-session FPS and bitrate status, throttled frame delivery and queue backpressure.
+- Canvas display with image decoding and frame coalescing, remote input and resize.
+- Completely redesigned midnight-blue browser chrome with stream settings panel.
+- Chromium screencasting is **not WebRTC** and does not provide sound; maximum frame rate depends on Render CPU, network conditions and page behavior.
+
 ## Initial features (v0.1.2)
 - Remote Chromium with screenshot streaming.
 - URL navigation, back/forward, reload, mouse click and scroll, keyboard and viewport resize.

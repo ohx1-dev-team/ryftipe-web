@@ -106,59 +106,106 @@ server.on('upgrade', (req,socket,head) => {
 });
 const tell = (ws, message) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message)); };
 wss.on('connection', async ws => {
-  let context, page, timer, busy = false;
-  const cleanup = async () => { clearInterval(timer); if (context) await context.close().catch(()=>{}); };
-  ws.on('close',cleanup);
+  let context, page, cdp, closed=false, quality=82, resolution=1, lastResize=0;
+  let frames=0, bytes=0, metricTimer, lastMetrics=Date.now();
+  let lastFrame=0, framePending=false, screencastActive=false;
+  const say = value => tell(ws,value);
+  async function startCast() {
+    if (!cdp || closed) return;
+    if (screencastActive) await cdp.send('Page.stopScreencast').catch(()=>{});
+    screencastActive = true;
+    await cdp.send('Page.startScreencast', {format:'jpeg',quality,maxWidth:Math.round((page.viewportSize()?.width||1280)*resolution),maxHeight:Math.round((page.viewportSize()?.height||720)*resolution),everyNthFrame:1});
+  }
+  async function close() {
+    if (closed) return;
+    closed=true;
+    clearInterval(metricTimer);
+    await cdp?.send('Page.stopScreencast').catch(()=>{});
+    await cdp?.detach().catch(()=>{});
+    await context?.close().catch(()=>{});
+  }
+  ws.on('close',close);
+  ws.on('error',()=>{});
   try {
-    context = await browser.newContext({viewport:{width:1280,height:720},acceptDownloads:false});
-    await context.route('**/*', async route => {
-      if (!await isPublicURL(route.request().url())) return route.abort().catch(()=>{});
+    context=await browser.newContext({viewport:{width:1280,height:720},deviceScaleFactor:1,acceptDownloads:false});
+    await context.route('**/*',async route=>{
+      const requestURL=route.request().url();
+      if (!await isPublicURL(requestURL)) return route.abort().catch(()=>{});
       return route.continue().catch(()=>{});
     });
-    page = await context.newPage();
-    page.on('framenavigated', frame => {
-      if (frame === page.mainFrame()) tell(ws,{type:'location',url:frame.url()});
+    page=await context.newPage();
+    page.on('framenavigated',frame=>{if(frame===page.mainFrame())say({type:'location',url:frame.url()});});
+    page.on('domcontentloaded',()=>say({type:'title',title:page.url()}));
+    page.on('crash',()=>say({type:'error',message:'Chromium tab crashed; reload to restart'}));
+    cdp=await context.newCDPSession(page);
+    await cdp.send('Page.enable');
+    cdp.on('Page.screencastFrame',async ({data,sessionId})=>{
+      // Always acknowledge frames to let Chromium send its next frame.
+      cdp.send('Page.screencastFrameAck',{sessionId}).catch(()=>{});
+      if(closed || ws.readyState!==WebSocket.OPEN) return;
+      // Drop instead of queueing stale frames on slow connections.
+      const now=Date.now();
+      if(ws.bufferedAmount>768*1024 || now-lastFrame<33 || framePending)return;
+      lastFrame=now;
+      framePending=true;
+      try {
+        const payload=Buffer.from(data,'base64');
+        if(ws.readyState===WebSocket.OPEN && ws.bufferedAmount<768*1024){
+          ws.send(payload,{binary:true},()=>{framePending=false;});
+          frames++;bytes+=payload.length;
+        } else framePending=false;
+      }catch{framePending=false;}
     });
+    await startCast();
     await page.goto('https://example.com',{waitUntil:'domcontentloaded',timeout:20000}).catch(()=>{});
-    if (ws.readyState !== WebSocket.OPEN) return cleanup();
-    tell(ws,{type:'ready'});
-    timer = setInterval(async () => {
-      if (busy || ws.readyState !== WebSocket.OPEN || ws.bufferedAmount > 1_000_000) return;
-      busy = true;
-      try {
-        const screenshot = await page.screenshot({type:'jpeg',quality:55,animations:'disabled',timeout:4000});
-        tell(ws,{type:'frame',jpeg:screenshot.toString('base64')});
-      } catch {}
-      finally { busy = false; }
-    },250);
-    ws.on('message', async raw => {
-      if (raw.length > 16000) return;
+    if(closed)return;
+    say({type:'ready',quality,resolution,transport:'binary-cdp'});
+    metricTimer=setInterval(()=>{
+      const now=Date.now(),seconds=Math.max(0.1,(now-lastMetrics)/1000);
+      say({type:'metrics',fps:Math.round(frames/seconds),kbps:Math.round(bytes*8/1024/seconds),quality});
+      frames=0;bytes=0;lastMetrics=now;
+    },2000);
+    ws.on('message',async raw=>{
+      if(closed || raw.length>16000)return;
       let msg;
-      try { msg=JSON.parse(raw.toString()); } catch { return; }
-      try {
-        if (msg.type === 'navigate') {
-          let url = String(msg.url || '').trim();
-          if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-          if (!await isPublicURL(url)) throw Error('Only public HTTP(S) URLs are allowed');
-          await page.goto(url,{waitUntil:'domcontentloaded',timeout:20000});
-        } else if (msg.type === 'back') await page.goBack({waitUntil:'domcontentloaded',timeout:15000});
-        else if (msg.type === 'forward') await page.goForward({waitUntil:'domcontentloaded',timeout:15000});
-        else if (msg.type === 'reload') await page.reload({waitUntil:'domcontentloaded',timeout:15000});
-        else if (msg.type === 'click' && Number.isFinite(msg.x) && Number.isFinite(msg.y))
+      try{msg=JSON.parse(raw.toString());}catch{return;}
+      try{
+        if(msg.type==='navigate'){
+          let target=String(msg.url||'').trim();
+          if(!/^https?:\/\//i.test(target))target='https://'+target;
+          if(!await isPublicURL(target))throw Error('Only public HTTP(S) URLs are supported');
+          await page.goto(target,{waitUntil:'domcontentloaded',timeout:20000});
+        } else if(msg.type==='back')await page.goBack({waitUntil:'domcontentloaded',timeout:15000});
+        else if(msg.type==='forward')await page.goForward({waitUntil:'domcontentloaded',timeout:15000});
+        else if(msg.type==='reload')await page.reload({waitUntil:'domcontentloaded',timeout:15000});
+        else if(msg.type==='click'&&Number.isFinite(msg.x)&&Number.isFinite(msg.y))
           await page.mouse.click(Math.max(0,Math.min(1920,msg.x)),Math.max(0,Math.min(1200,msg.y)));
-        else if (msg.type === 'scroll' && Number.isFinite(msg.dx) && Number.isFinite(msg.dy))
-          await page.mouse.wheel(Math.max(-1000,Math.min(1000,msg.dx)),Math.max(-1000,Math.min(1000,msg.dy)));
-        else if (msg.type === 'key' && typeof msg.key === 'string' && msg.key.length < 80)
+        else if(msg.type==='move'&&Number.isFinite(msg.x)&&Number.isFinite(msg.y))
+          await page.mouse.move(Math.max(0,Math.min(1920,msg.x)),Math.max(0,Math.min(1200,msg.y)));
+        else if(msg.type==='scroll'&&Number.isFinite(msg.dx)&&Number.isFinite(msg.dy))
+          await page.mouse.wheel(Math.max(-1200,Math.min(1200,msg.dx)),Math.max(-1200,Math.min(1200,msg.dy)));
+        else if(msg.type==='key'&&typeof msg.key==='string'&&msg.key.length<80)
           await page.keyboard.press(msg.key);
-        else if (msg.type === 'text' && typeof msg.text === 'string' && msg.text.length < 2048)
+        else if(msg.type==='text'&&typeof msg.text==='string'&&msg.text.length<2048)
           await page.keyboard.insertText(msg.text);
-        else if (msg.type === 'resize') {
+        else if(msg.type==='resize'){
           const width=Math.round(Number(msg.width)),height=Math.round(Number(msg.height));
-          if (width>=320 && width<=1920 && height>=240 && height<=1200) await page.setViewportSize({width,height});
+          if(width>=320&&width<=1920&&height>=240&&height<=1200&&Date.now()-lastResize>80){
+            lastResize=Date.now();
+            await page.setViewportSize({width,height});
+            await startCast();
+          }
+        } else if(msg.type==='quality'){
+          if(['balanced','sharp','fast'].includes(msg.preset)){
+            quality=msg.preset==='sharp'?92:msg.preset==='fast'?62:82;
+            resolution=msg.preset==='fast'?0.85:1;
+            await startCast();
+            say({type:'quality',preset:msg.preset,quality});
+          }
         }
-      } catch(err) { tell(ws,{type:'error',message:String(err.message).slice(0,180)}); }
+      }catch(err){say({type:'error',message:String(err.message).slice(0,180)});}
     });
-  } catch(err) { tell(ws,{type:'error',message:'Browser initialization failed'}); await cleanup(); }
+  }catch(err){say({type:'error',message:'Remote browser failed to initialize: '+String(err.message).slice(0,100)});await close();}
 });
 browser = await chromium.launch({headless:true});
 server.listen(PORT,'0.0.0.0',()=>console.log('Ryftipe listening on '+PORT));
