@@ -1,6 +1,6 @@
 # Ryftipe
 
-Ryftipe is an experimental remotely rendered Chromium browser. Its Chromium browser runs on the server; your browser receives JPEG frames through a WebSocket and sends mouse and keyboard input back.
+Ryftipe is an experimental browser interface with two website engines: the original Ryftipe Rendering Engine (RTE), and an optional Chromium fallback running remotely. RTE renders HTML/CSS via Canvas; Chromium sends JPEG frames via WebSocket. Neither engine is a complete replacement for a mainstream browser.
 
 ## Run locally
 Node.js 22+ required. The npm install step installs the matching Chromium binary automatically.
@@ -24,6 +24,18 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 - Start Command: `npm start`
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
+
+## v0.8.0 — Browser foundations capstone (Brave-inspired UX)
+
+- **ryftipe://flags:** searchable experimental flag controls, explicit defaults, persistent local values, reset-all, and live application of supported options. These are Ryftipe flags—not Chromium internals.
+- **Navigation tabs:** up to 10 URL-backed tabs with new/close/switch buttons and Ctrl+T, Ctrl+W, Ctrl+Tab. **These are lightweight navigation tabs:** switching back to an external site reloads it; they do not hold multiple independent live Chromium sessions.
+- **Browser menu:** shortcuts to home, bookmarks, history, privacy, flags, site permissions, settings and about.
+- **Search preferences:** DuckDuckGo (default), Brave Search, Google and Bing. Searches entered in the address bar use the chosen engine.
+- **Privacy center:** enable/disable local history recording, clear local history/bookmarks/site permissions, and per-domain RTE JavaScript permissions. No false claim of tracker blocking or private browsing isolation.
+- **Feature toggles:** RTE scripts, RTE images, compatibility warnings, performance readout, compact toolbar, reduced motion and homepage shortcuts.
+- **Startup:** always opens ryftipe://home, even after visiting external websites.
+- **Storage:** preferences remain in this browser's localStorage; no PostgreSQL/accounts yet.
+- **Known limitations:** no extensions, downloads manager, full multi-process tabs, sync, network-wide shields, media/WebRTC, or parity with Brave/Chromium.
 
 ## v0.7.0 — CSS and compatibility improvements
 

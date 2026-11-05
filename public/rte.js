@@ -6,7 +6,7 @@ const OMIT=new Set('head meta link title script style noscript template'.split('
 const base={color:'#1f2937','font-size':'16px','font-weight':'normal','font-family':'Arial'};
 const defaults={body:{'background-color':'#fff'},a:{color:'#2052af'},h1:{'font-size':'32px','font-weight':'bold'},h2:{'font-size':'26px','font-weight':'bold'},h3:{'font-size':'21px','font-weight':'bold'},b:{'font-weight':'bold'},strong:{'font-weight':'bold'},small:{'font-size':'12px'},code:{'font-family':'monospace'}};
 function px(value,fallback=0,base=700){return cssLength(value,fallback,base,16,typeof window!=='undefined'?window.innerWidth:base);}
-export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompatibility,javascriptEnabled=()=>true}){
+export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompatibility,javascriptEnabled=()=>true,imagesEnabled=()=>true}){
  const c=canvas.getContext('2d',{alpha:false});
  let url='',doc=null,rules=[],cssSource='',scroll=0,commands=[],hits=[],height=0,active=false,generation=0,history=[],position=-1;
  let pageBackground='#fff',lastWidth=0;
@@ -15,7 +15,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  function style(n,parent,ancestors){return computeStyle(n,parent,rules,ancestors);}
  function font(s){const z=Math.min(52,Math.max(10,px(s['font-size'],16)));return {size:z,value:(s['font-weight']==='bold'||parseInt(s['font-weight'])>=600?'bold ':'')+z+'px '+(s['font-family']==='monospace'?'monospace':'Arial')};}
  function absolute(raw){try{const u=new URL(raw,url);return /^https?:$/.test(u.protocol)?u.href:null;}catch{return null;}}
- function image(raw){const target=absolute(raw);if(!target)return null;if(!images.has(target)){images.set(target,{status:'loading'});fetch('/api/rte/image?url='+encodeURIComponent(target)).then(r=>{if(!r.ok)throw Error();return r.blob();}).then(createImageBitmap).then(b=>{images.set(target,{status:'ready',bitmap:b});paint();}).catch(()=>images.set(target,{status:'error'}));}return target;}
+ function image(raw){if(!imagesEnabled())return null;const target=absolute(raw);if(!target)return null;if(!images.has(target)){images.set(target,{status:'loading'});fetch('/api/rte/image?url='+encodeURIComponent(target)).then(r=>{if(!r.ok)throw Error();return r.blob();}).then(createImageBitmap).then(b=>{images.set(target,{status:'ready',bitmap:b});paint();}).catch(()=>images.set(target,{status:'error'}));}return target;}
  function drawText(text,s,x,y,width,href,nodeId){
   const f=font(s);c.font=f.value;const line=f.size*1.32;let xx=x,yy=y;
   for(const word of String(text).replace(/\s+/g,' ').split(/(\s+)/)){
