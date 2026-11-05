@@ -4,6 +4,10 @@ let token='',active=false,nextID=0,scheduled=false,pageURL='',fetchSequence=0;
 const pendingFetch=new Map();
 const CAP=1800;
 const observer=new MutationObserver(()=>{if(active&&!scheduled){scheduled=true;setTimeout(()=>{scheduled=false;snapshot();},110);}});
+let observedShadows=new WeakSet();
+function watchShadow(root){if(!root||observedShadows.has(root))return;observedShadows.add(root);observer.observe(root,{subtree:true,childList:true,attributes:true,characterData:true});}
+const attachShadow=Element.prototype.attachShadow;
+Element.prototype.attachShadow=function(options){const root=attachShadow.call(this,options);if(options?.mode==='open'){watchShadow(root);queueMicrotask(()=>snapshot());}return root;};
 function pack(node,depth=0,limit={count:0}){
  if(depth>40||limit.count++>CAP)return null;
  if(node.nodeType===3)return {text:node.textContent.slice(0,4000)};
@@ -11,14 +15,16 @@ function pack(node,depth=0,limit={count:0}){
  if(['script','style','iframe','object','embed','svg','canvas'].includes(node.localName))return null;
  if(!node.__rteId)node.__rteId=++nextID;
  const attrs={};for(const a of [...node.attributes].slice(0,30))if(!a.name.startsWith('on'))attrs[a.name]=a.value.slice(0,500);
- return {tag:node.localName,rteId:node.__rteId,attrs,children:[...node.childNodes].map(n=>pack(n,depth+1,limit)).filter(Boolean)};
+ const children=[...node.childNodes];
+ if(node.shadowRoot){watchShadow(node.shadowRoot);children.push(...node.shadowRoot.childNodes);}
+ return {tag:node.localName,rteId:node.__rteId,attrs,children:children.map(n=>pack(n,depth+1,limit)).filter(Boolean)};
 }
 function snapshot(){if(active){const body=pack(document.body);parent.postMessage({type:'rte-snapshot',token,body,title:document.title},'*');}}
 function mount(tree,title,url){
  pageURL=String(url||'');
  for(const settle of pendingFetch.values())settle({error:'Navigation cancelled'});
  pendingFetch.clear();
- active=false;observer.disconnect();document.body.replaceChildren();
+ active=false;observer.disconnect();observedShadows=new WeakSet();document.body.replaceChildren();
  document.title=String(title||'RTE').slice(0,120);nextID=0;
  function make(node,depth=0){
   if(depth>40)return document.createTextNode('');
@@ -35,7 +41,7 @@ function mount(tree,title,url){
  function add(node){if(!node)return;if(node.tag==='document'||node.tag==='html'||node.tag==='body'){for(const ch of node.children||[])add(ch);}else if(node.tag!=='head')document.body.appendChild(make(node));}
  add(tree);active=true;observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true});snapshot();
 }
-function byId(id){const queue=[document.body];let steps=0;while(queue.length&&steps++<CAP*2){const el=queue.shift();if(el.__rteId===id)return el;queue.push(...el.children);}return null;}
+function byId(id){const queue=[document.body];let steps=0;while(queue.length&&steps++<CAP*2){const el=queue.shift();if(el.__rteId===id)return el;queue.push(...el.children);if(el.shadowRoot)queue.push(...el.shadowRoot.children);}return null;}
 // A restricted fetch bridge for basic site JSON/text APIs. No credentials or POST.
 window.fetch=(input,options={})=>{
  const method=String(options?.method||'GET').toUpperCase();

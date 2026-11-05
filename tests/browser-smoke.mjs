@@ -40,7 +40,8 @@ try{
    scripts:[
     {kind:'classic',inline:'document.getElementById("status").textContent="classic-ok";'},
     {kind:'module',inline:'document.getElementById("status").textContent+=" module-ok";'},
-    {kind:'classic',inline:'fetch("/test.json").then(r=>r.json()).then(d=>{document.getElementById("status").textContent+=" "+d.hello})'}
+    {kind:'classic',inline:'fetch("/test.json").then(r=>r.json()).then(d=>{document.getElementById("status").textContent+=" "+d.hello})'},
+    {kind:'classic',inline:'const host=document.createElement("div");host.id="shadow-host";const shadow=host.attachShadow({mode:"open"});shadow.innerHTML="<span>shadow-ok</span>";document.body.append(host);'}
    ]};
   const loaded=await runtime.load(data);
   return {loaded,metrics:runtime.metrics};
@@ -48,11 +49,12 @@ try{
  assert.equal(result.loaded,true,'The sandbox must finish loading');
  await page.waitForFunction(()=>window.__snapshots?.some(s=>s.includes('network-ok')),null,{timeout:10000});
  const outcome=await page.evaluate(()=>({snapshots:window.__snapshots.slice(-3),errors:window.__errors,metrics:window.__rte.metrics}));
- assert.equal(outcome.metrics.executed,3,'Classic and module scripts must execute');
+ assert.equal(outcome.metrics.executed,4,'Classic and module scripts must execute');
  assert.ok(outcome.metrics.networkRequests>=1,'The fetch bridge should receive a request');
  assert.equal(outcome.metrics.networkFailures,0);
  assert.ok(outcome.snapshots.some(s=>s.includes('classic-ok')&&s.includes('module-ok')&&s.includes('network-ok')));
- console.log('PASS: sandbox, import-free ES module, DOM mutation and same-origin JSON fetch');
+ assert.ok(outcome.snapshots.some(s=>s.includes('shadow-ok')),'Open Shadow DOM text must appear in RTE snapshots');
+ console.log('PASS: sandbox, import-free ES module, DOM mutation, open Shadow DOM and same-origin JSON fetch');
  console.log(JSON.stringify(outcome.metrics));
  await page.evaluate(()=>window.__rte.dispose());
 }finally{

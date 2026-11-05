@@ -25,6 +25,14 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.13.0 — Open Shadow DOM support
+
+- The experimental RTE script sandbox now serializes **open Shadow DOM trees**, making custom-element content visible in the RTE canvas snapshot renderer.
+- ShadowRoot mutations trigger re-render snapshots, and hit testing can locate elements inside open shadow roots.
+- Extended the real Chromium browser smoke test to verify custom-element shadow content alongside classic scripts, import-free modules and the network bridge.
+- Incomplete: encapsulated CSS, slots, closed roots, full custom-element lifecycles, module imports and adaptive media.
+- **YouTube still does not work in RTE.**
+
 ## v0.12.0 — RTE script and networking foundation
 
 - RTE now extracts classic scripts **and ES modules** with an explicit execution type and increased bounded script budget.
