@@ -25,6 +25,14 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.3.0 internal browser pages
+
+Ryftipe now has an instantly rendered local home page and internally routed `ryftipe://home`, `ryftipe://newtab`, `ryftipe://settings`, `ryftipe://gpu`, `ryftipe://bookmarks`, `ryftipe://history`, `ryftipe://about`, and `ryftipe://help` pages.
+
+These pages are rendered in the frontend, rather than navigated inside remote Chromium. The GPU diagnostic endpoint uses Chromium's DevTools SystemInfo protocol to report the **server's** GPU feature statuses, devices, architecture and browser version. No claims are made that a GPU is available on Render.
+
+Preferences, history and bookmarks are stored in localStorage **on this device only**. No accounts or PostgreSQL have been introduced, as requested. These records can be lost when browser storage is cleared or the deployment origin changes.
+
 ## v0.2.0 capstone: quality and interface
 
 - Chromium DevTools Protocol screencasting replaces the slow polling screenshot loop.
@@ -45,4 +53,4 @@ The package also has a `postinstall` hook to install the Chromium binary during 
 Public mode means anyone with the deployment URL can start a resource-intensive browser session (up to `MAX_CLIENTS` simultaneous sessions). Use private mode when possible, and add deployment/network-level protection before making a production service available to others. Do not trust the application-layer URL checks as a complete SSRF defense.
 
 ## Known limitations
-This is a prototype, **not** a hardened publicly hosted browsing service. Application-level DNS checks are not a sufficient SSRF defense; enforce network-level denial of internal/private addresses before exposing it to untrusted users. Navigation to private network resources is denied on a best-effort basis. Frame delivery is JPEG at roughly 4 FPS with no audio. No clipboard, uploads, downloads, browser tabs, DRM or persistence. Some websites may decline to run under automated remote browsers. It does not guarantee bypass of network filtering systems.
+This is a prototype, **not** a hardened publicly hosted browsing service. Application-level DNS checks are not a sufficient SSRF defense; enforce network-level denial of internal/private addresses before exposing it to untrusted users. Navigation to private network resources is denied on a best-effort basis. Frame delivery is CDP JPEG screencast with variable FPS and no audio. No clipboard, uploads, downloads, browser tabs, DRM or persistence. Some websites may decline to run under automated remote browsers. It does not guarantee bypass of network filtering systems.

@@ -85,6 +85,29 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Set-Cookie','ryftipe=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');
     return json(res,200,{ok:true});
   }
+  if (req.url === '/api/diagnostics' && req.method === 'GET') {
+    if (!authorized(req)) return json(res,401,{error:'Unauthorized'});
+    try {
+      const session=await browser.newBrowserCDPSession();
+      try {
+        const gpu=await session.send('SystemInfo.getInfo');
+        const devices=(gpu.gpu?.devices || []).map(device=>({
+          vendorId:device.vendorId,deviceId:device.deviceId,
+          vendorString:device.vendorString,deviceString:device.deviceString,
+          driverVendor:device.driverVendor,driverVersion:device.driverVersion
+        }));
+        return json(res,200,{
+          browserVersion:browser.version(),
+          platform:process.platform,architecture:process.arch,
+          cpuCount:(await import('node:os')).cpus().length,
+          devices,featureStatus:gpu.gpu?.featureStatus || {},
+          auxAttributes:gpu.gpu?.auxAttributes || {},
+          memoryUsedMB:Math.round(process.memoryUsage().rss/1048576),
+          stream:'Chromium CDP JPEG screencast',audio:false
+        });
+      } finally { await session.detach().catch(()=>{}); }
+    } catch(err) { return json(res,503,{error:'GPU diagnostics unavailable',detail:String(err.message).slice(0,180)}); }
+  }
   const resources = { '/':'index.html','/app.js':'app.js','/style.css':'style.css' };
   if (req.method !== 'GET' || !resources[req.url]) return json(res,404,{error:'Not found'});
   const filename = resources[req.url];
