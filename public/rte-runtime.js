@@ -40,14 +40,18 @@ export function createScriptRuntime({onSnapshot,onError}){
    const id=Number(message.id);
    if(!Number.isSafeInteger(id)||id<0||id>100000||message.token!==token)return;
    telemetry.networkRequests++;
+   console.info('RTE bridge received',id,message.url);
    const target=allowedPageRequest(currentPage,String(message.url||''),String(message.method||'GET'));
    if(!target){telemetry.networkFailures++;send('fetch-result',{id,error:'RTE only supports same-origin GET requests'});return;}
    try{
     const reply=await fetch('/api/rte/data?url='+encodeURIComponent(target),{cache:'no-store'});
+    console.info('RTE bridge reply status',reply.status);
     const body=await reply.json();
+    console.info('RTE bridge parsed JSON',body.url);
     if(stopped||token!==message.token)return;
     if(!reply.ok){telemetry.networkFailures++;send('fetch-result',{id,error:body.error||'Request failed'});return;}
     if(new URL(body.url).origin!==new URL(currentPage).origin){telemetry.networkFailures++;send('fetch-result',{id,error:'Cross-origin redirect blocked'});return;}
+    console.info('RTE bridge sending',id);
     send('fetch-result',{id,body:body.body,type:body.type,status:200});
    }catch(error){telemetry.networkFailures++;send('fetch-result',{id,error:String(error.message||error).slice(0,130)});}
   }
