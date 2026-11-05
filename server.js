@@ -1,3 +1,4 @@
+import {handleRTE} from './rte/handler.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,6 +20,12 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const activeTokens = new Map();
 const MAX_CLIENTS = Math.max(1, Number(process.env.MAX_CLIENTS || 2));
 let browser;
+let browserPromise;
+async function ensureBrowser(){
+  if(browser)return browser;
+  if(!browserPromise)browserPromise=chromium.launch({headless:true}).then(value=>(browser=value)).finally(()=>{browserPromise=null;});
+  return browserPromise;
+}
 function isPublicIP(ip) {
   const kind = net.isIP(ip);
   if (kind === 4) {
@@ -86,6 +93,7 @@ const server = http.createServer(async (req, res) => {
     return json(res,200,{ok:true});
   }
   if (req.url === '/api/diagnostics' && req.method === 'GET') {
+    try{await ensureBrowser();}catch{return json(res,503,{error:'Chromium fallback unavailable'});}
     if (!authorized(req)) return json(res,401,{error:'Unauthorized'});
     try {
       const session=await browser.newBrowserCDPSession();
@@ -108,7 +116,8 @@ const server = http.createServer(async (req, res) => {
       } finally { await session.detach().catch(()=>{}); }
     } catch(err) { return json(res,503,{error:'GPU diagnostics unavailable',detail:String(err.message).slice(0,180)}); }
   }
-  const resources = { '/':'index.html','/app.js':'app.js','/style.css':'style.css' };
+  if(req.url?.startsWith('/api/rte/')){if(!authorized(req))return json(res,401,{error:'Unauthorized'});return handleRTE(req,res);}
+  const resources = { '/':'index.html','/app.js':'app.js','/rte.js':'rte.js','/style.css':'style.css' };
   if (req.method !== 'GET' || !resources[req.url]) return json(res,404,{error:'Not found'});
   const filename = resources[req.url];
   res.writeHead(200, { 'Content-Type': filename.endsWith('.js') ? 'text/javascript' : filename.endsWith('.css') ? 'text/css' : 'text/html',
@@ -117,7 +126,7 @@ const server = http.createServer(async (req, res) => {
   fs.createReadStream(path.join(root,'public',filename)).pipe(res);
 });
 const wss = new WebSocketServer({ noServer:true });
-server.on('upgrade', (req,socket,head) => {
+server.on('upgrade', async (req,socket,head) => {
   let validOrigin = false;
   try { validOrigin = new URL(req.headers.origin).host === req.headers.host; } catch {}
   if (req.url !== '/stream' || !validOrigin || !authorized(req) || wss.clients.size >= MAX_CLIENTS) {
@@ -125,6 +134,8 @@ server.on('upgrade', (req,socket,head) => {
     socket.destroy();
     return;
   }
+  try{await ensureBrowser();}catch{socket.destroy();return;}
+  if(socket.destroyed)return;
   wss.handleUpgrade(req,socket,head,ws => wss.emit('connection',ws));
 });
 const tell = (ws, message) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message)); };
@@ -230,7 +241,7 @@ wss.on('connection', async ws => {
     });
   }catch(err){say({type:'error',message:'Remote browser failed to initialize: '+String(err.message).slice(0,100)});await close();}
 });
-browser = await chromium.launch({headless:true});
+// Chromium starts lazily only when the user chooses the fallback engine.
 server.listen(PORT,'0.0.0.0',()=>console.log('Ryftipe listening on '+PORT));
-async function shutdown() { wss.clients.forEach(ws=>ws.close()); server.close(); await browser.close(); process.exit(0); }
+async function shutdown() { wss.clients.forEach(ws=>ws.close()); server.close(); await browser?.close(); process.exit(0); }
 process.on('SIGINT',shutdown); process.on('SIGTERM',shutdown);

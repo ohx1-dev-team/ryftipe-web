@@ -1,11 +1,12 @@
 {
   "name": "ryftipe",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "playwright install chromium"
+    "postinstall": "playwright install chromium",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=22"

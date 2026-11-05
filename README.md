@@ -25,6 +25,12 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.4.0 original Ryftipe Engine (RTE)
+
+An experimental original HTML tokenizer, DOM-like tree builder, CSS subset parser, Canvas2D painting/layout, images, scrolling, clickable links, history navigation. RTE is the default mode; Chromium is a fallback selectable at ryftipe://settings. Remote scripts are not executed.
+
+**Limitations**: no JavaScript DOM, Flexbox/Grid, fully functional forms, WebGL, media decoding, audio/video or browser standards compliance. YouTube will not work in RTE mode; use Chromium fallback. The Canvas2D draw primitives are provided by the host browser; HTML and CSS parsing/layout are RTE code. Network safeguards are best effort; a public deployment also needs network egress filtering against SSRF.
+
 ## v0.3.0 internal browser pages
 
 Ryftipe now has an instantly rendered local home page and internally routed `ryftipe://home`, `ryftipe://newtab`, `ryftipe://settings`, `ryftipe://gpu`, `ryftipe://bookmarks`, `ryftipe://history`, `ryftipe://about`, and `ryftipe://help` pages.

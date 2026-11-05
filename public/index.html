@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1124"><title>Ryftipe</title><link rel="stylesheet" href="/style.css"></head><body>
 <section id="login" class="login" hidden><div class="login-box"><div class="logo">◈</div><h1>Welcome to Ryftipe</h1><p>Enter your access password to continue.</p><form id="login-form"><input id="password" type="password" placeholder="Access password" autocomplete="current-password" required><button>Continue</button></form><p id="login-error" class="error"></p></div></section>
 <div id="browser" hidden><header>
-<div class="titlebar"><div class="wordmark"><span class="mark">◈</span><span>ryftipe</span></div><div class="tab active"><span class="tab-dot">●</span><span id="tab-title">New tab</span></div><div class="title-spacer"></div><div class="version">OHx1 · v0.3.0</div></div>
+<div class="titlebar"><div class="wordmark"><span class="mark">◈</span><span>ryftipe</span></div><div class="tab active"><span class="tab-dot">●</span><span id="tab-title">New tab</span></div><div class="title-spacer"></div><div class="version">OHx1 · v0.4.0</div></div>
 <div class="toolbar">
 <button class="nav" id="back" title="Back">←</button><button class="nav" id="forward" title="Forward">→</button><button class="nav" id="reload" title="Reload">↻</button>
 <form id="url-form"><span class="security-icon">◎</span><input id="url" autocomplete="off" spellcheck="false" aria-label="Address bar" placeholder="Search or enter URL"><span class="address-hint">↵</span></form>
@@ -11,7 +11,7 @@
 <div id="notice" hidden></div>
 <main id="viewport">
 <div id="waiting"><div class="spinner"></div><strong>Starting remote Chromium</strong><span>Connecting your session…</span></div>
-<canvas id="screen" tabindex="0" aria-label="Remote browser display"></canvas>
+<canvas id="screen" tabindex="0" aria-label="Remote Chromium display"></canvas><canvas id="rte-screen" tabindex="0" aria-label="RTE Canvas browser engine" hidden></canvas>
 <div id="internal" hidden><div class="page-shell"><div id="internal-content"></div></div></div>
 </main>
 <footer><div class="status-left"><span class="light"></span><span id="connection">Connecting</span><span class="separator">/</span><span id="fps">— FPS</span><span class="separator">/</span><span id="bitrate">— kbps</span></div><div class="footer-right"><span id="quality-label">Balanced</span><span class="separator">·</span><span>Chromium remote</span></div></footer>
