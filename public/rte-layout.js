@@ -102,21 +102,21 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
   const fs=fontStyle(s).size;
   const margin=num(s.margin,0,w,fs);
   const mt=num(s['margin-top'],margin,w,fs),mb=num(s['margin-bottom'],margin,w,fs);
-  const geometry=boxGeometry(s,w,fs);
-  const {pl,pr,pt,pb}=geometry;
-  const inside=geometry.content;
-  const left=x+geometry.offsetX;
+  const geometryBox=boxGeometry(s,w,fs);
+  const {pl,pr,pt,pb}=geometryBox;
+  const inside=geometryBox.content;
+  const left=x+geometryBox.offsetX;
   const boxY=y+mt;let cursorY=boxY+pt;
   const background=s['background-color']||null;
   const borderMatch=String(s.border||'').match(/([\d.]+)px\s+(?:solid|dashed)\s+([^\s]+)/);
   const borderWidth=Math.max(0,Math.min(12,num(s['border-width'],borderMatch?Number(borderMatch[1]):0,w,fs)));
   const borderColor=s['border-color']||borderMatch?.[2]||'#cbd5e1';
   const radius=Math.max(0,Math.min(30,num(s['border-radius'],0,w,fs)));
-  const bg=background&&background!=='transparent'?{kind:'rect',x:left,y:boxY,w:geometry.outer,h:0,color:background,radius}:null;
-  const border=borderWidth?{kind:'border',x:left,y:boxY,w:geometry.outer,h:0,color:borderColor,lineWidth:borderWidth,radius}:null;
+  const bg=background&&background!=='transparent'?{kind:'rect',x:left,y:boxY,w:geometryBox.outer,h:0,color:background,radius}:null;
+  const border=borderWidth?{kind:'border',x:left,y:boxY,w:geometryBox.outer,h:0,color:borderColor,lineWidth:borderWidth,radius}:null;
   const customControl=n.tag==='input'||n.tag==='textarea'||n.tag==='button';
   if(bg&&!customControl)commands.push(bg);
-  const gradient=s['background-gradient']?{kind:'gradient',x:left,y:boxY,w:geometry.outer,h:0,gradient:s['background-gradient']}:null;
+  const gradient=s['background-gradient']?{kind:'gradient',x:left,y:boxY,w:geometryBox.outer,h:0,gradient:s['background-gradient']}:null;
   if(gradient&&!customControl)commands.push(gradient);
   if(border&&!customControl)commands.push(border);
   if(n.tag==='br')return cursorY+fs*1.3;
@@ -138,19 +138,19 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
    return cursorY+imageHeight+pb+mb;
   }
   if(n.tag==='input'||n.tag==='textarea'||n.tag==='button'){
-   const geometry=controlGeometry(n,s,inside,(text,size)=>measure(ctx,text,size+'px Arial, sans-serif'));
+   const geometry=controlGeometry(n,s,Math.max(24,geometryBox.outer),(text,size)=>measure(ctx,text,size+'px Arial, sans-serif'));
    const controlW=geometry.width,controlH=geometry.height;
    const inputType=String(n.attrs?.type||'text').toLowerCase();
    const isTextInput=n.tag==='input'&&['text','email','password','search','number','url','tel'].includes(inputType)||n.tag==='textarea';
    const controlBackground=s['background-color']||s.background||(isTextInput?'#fff':'#e5ebf4');
    const controlBorder=s['border-color']||'#cbd5e1';
-   if(controlBackground!=='transparent')commands.push({kind:'rect',x:left+pl,y:cursorY,w:controlW,h:controlH,color:controlBackground,radius:Math.max(0,Math.min(30,num(s['border-radius'],4,inside,fs)))});
-   commands.push({kind:'border',x:left+pl,y:cursorY,w:controlW,h:controlH,color:controlBorder,lineWidth:1,radius:Math.max(0,Math.min(30,num(s['border-radius'],4,inside,fs)))});
+   if(controlBackground!=='transparent')commands.push({kind:'rect',x:left,y:cursorY,w:controlW,h:controlH,color:controlBackground,radius:Math.max(0,Math.min(30,num(s['border-radius'],4,inside,fs)))});
+   commands.push({kind:'border',x:left,y:cursorY,w:controlW,h:controlH,color:controlBorder,lineWidth:1,radius:Math.max(0,Math.min(30,num(s['border-radius'],4,inside,fs)))});
    if(geometry.label){
     const labelColor=s.color||(isTextInput?'#31435c':DEFAULT.color);
-    paintLines([{text:geometry.label,style:{...s,color:labelColor,'font-size':geometry.font+'px'}}],left+pl+geometry.padX,cursorY+geometry.padY,Math.max(10,controlW-geometry.padX*2),s['text-align']||'left');
+    paintLines([{text:geometry.label,style:{...s,color:labelColor,'font-size':geometry.font+'px'}}],left+geometry.padX,cursorY+geometry.padY,Math.max(10,controlW-geometry.padX*2),s['text-align']||'left');
    }
-   hits.push({x:left+pl,y:cursorY,w:controlW,h:controlH,input:n.tag==='input'||n.tag==='textarea'?n:null,submit:n.tag==='button'?n:null,form:formNode,nodeId});
+   hits.push({x:left,y:cursorY,w:controlW,h:controlH,input:n.tag==='input'||n.tag==='textarea'?n:null,submit:n.tag==='button'?n:null,form:formNode,nodeId});
    return cursorY+controlH+pb+mb;
   }
   if(n.tag==='li')commands.push({kind:'text',text:'•',x:left+pl-14,y:cursorY,h:fs*1.3,font:fs+'px Arial',color:s.color||DEFAULT.color});

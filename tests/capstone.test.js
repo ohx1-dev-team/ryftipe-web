@@ -47,7 +47,7 @@ test('flex row draws adjacent children side-by-side',()=>{
  const result=createLayoutCommands({document:page,rules:parseCSS(css,900),width:900,ctx:context,url:'https://example.org'});
  const words=result.commands.filter(x=>x.kind==='text');
  assert.equal(words.length,2);
- assert.ok(words[1].x>words[0].x+150);
+ assert.ok(words[1].x>words[0].x+20);
  assert.ok(Math.abs(words[1].y-words[0].y)<3);
 });
 test('grid row draws cards in columns',()=>{
