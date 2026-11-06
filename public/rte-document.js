@@ -111,7 +111,7 @@ export function createDocumentRenderer(canvas,{onNavigate=()=>{},onEvent=async()
   return current;
  }
  function closest(element,selector){
-  return element instanceof Element?element.closest(selector):element?.parentElement?.closest(selector);
+  return typeof element?.closest==='function'?element.closest(selector):element?.parentElement?.closest?.(selector);
  }
  async function click(event){
   const el=event.target;
