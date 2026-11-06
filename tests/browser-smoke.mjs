@@ -6,7 +6,7 @@ import {dirname,resolve} from 'node:path';
 import {chromium} from 'playwright';
 // Browser-level sandbox integration smoke. Fixtures are local; no YouTube claim.
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..','public');
-const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js'],['/rte-modules.js','rte-modules.js'],['/rte-bridge.js','rte-bridge.js'],['/rte.js','rte.js'],['/rte-css.js','rte-css.js'],['/rte-layout.js','rte-layout.js'],['/rte-tracks.js','rte-tracks.js'],['/rte-forms.js','rte-forms.js'],['/rte-media.js','rte-media.js'],['/rte-gradients.js','rte-gradients.js'],['/rte-storage.js','rte-storage.js']]);
+const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js'],['/rte-modules.js','rte-modules.js'],['/rte-bridge.js','rte-bridge.js'],['/rte.js','rte.js'],['/rte-css.js','rte-css.js'],['/rte-layout.js','rte-layout.js'],['/rte-tracks.js','rte-tracks.js'],['/rte-forms.js','rte-forms.js'],['/rte-media.js','rte-media.js'],['/rte-gradients.js','rte-gradients.js'],['/rte-storage.js','rte-storage.js'],['/rte-controls.js','rte-controls.js']]);
 const server=http.createServer(async(req,res)=>{
  if(req.url?.startsWith('/api/rte/data?url=')&&new URL(req.url,'http://localhost').searchParams.get('url')==='https://example.org/test.json'){
   res.writeHead(200,{'Content-Type':'application/json'});

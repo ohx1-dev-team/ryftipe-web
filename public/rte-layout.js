@@ -1,6 +1,7 @@
 import {computeStyle,length as cssLength} from './rte-css.js';
 import {cssPixels,gapPixels,gridColumns,distributeTracks,trackPositions} from './rte-tracks.js';
 import {mediaSource,mediaCandidates} from './rte-media.js';
+import {controlGeometry} from './rte-controls.js';
 
 // RTE block/inline layout engine. Produces deterministic draw commands; canvas paints them.
 const BLOCK=new Set('html body main section article nav header footer div p h1 h2 h3 h4 h5 h6 ul ol li blockquote pre form figure figcaption table tr td th details summary address'.split(' '));
@@ -127,11 +128,20 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
    return cursorY+imageHeight+pb+mb;
   }
   if(n.tag==='input'||n.tag==='textarea'||n.tag==='button'){
-   const inputW=Math.min(inside,360),label=n.attrs?.placeholder||n.attrs?.value||(n.tag==='button'?'Submit':'Text input');
-   commands.push({kind:'rect',x:left+pl,y:cursorY,w:inputW,h:36,color:'#e5ebf4'});
-   paintLines([{text:label,style:{...s,color:'#31435c','font-size':'14px'}}],left+pl+8,cursorY+7,inputW-16);
-   hits.push({x:left+pl,y:cursorY,w:inputW,h:36,input:n.tag==='input'||n.tag==='textarea'?n:null,submit:n.tag==='button'?n:null,form:formNode,nodeId});
-   return cursorY+44+pb+mb;
+   const geometry=controlGeometry(n,s,inside,(text,size)=>measure(ctx,text,size+'px Arial, sans-serif'));
+   const controlW=geometry.width,controlH=geometry.height;
+   const inputType=String(n.attrs?.type||'text').toLowerCase();
+   const isTextInput=n.tag==='input'&&['text','email','password','search','number','url','tel'].includes(inputType)||n.tag==='textarea';
+   const controlBackground=s['background-color']||s.background||(isTextInput?'#fff':'#e5ebf4');
+   const controlBorder=s['border-color']||'#cbd5e1';
+   if(controlBackground!=='transparent')commands.push({kind:'rect',x:left+pl,y:cursorY,w:controlW,h:controlH,color:controlBackground,radius:Math.max(0,Math.min(30,num(s['border-radius'],4,inside,fs)))});
+   commands.push({kind:'border',x:left+pl,y:cursorY,w:controlW,h:controlH,color:controlBorder,lineWidth:1,radius:Math.max(0,Math.min(30,num(s['border-radius'],4,inside,fs)))});
+   if(geometry.label){
+    const labelColor=s.color||(isTextInput?'#31435c':DEFAULT.color);
+    paintLines([{text:geometry.label,style:{...s,color:labelColor,'font-size':geometry.font+'px'}}],left+pl+geometry.padX,cursorY+geometry.padY,Math.max(10,controlW-geometry.padX*2),s['text-align']||'left');
+   }
+   hits.push({x:left+pl,y:cursorY,w:controlW,h:controlH,input:n.tag==='input'||n.tag==='textarea'?n:null,submit:n.tag==='button'?n:null,form:formNode,nodeId});
+   return cursorY+controlH+pb+mb;
   }
   if(n.tag==='li')commands.push({kind:'text',text:'•',x:left+pl-14,y:cursorY,h:fs*1.3,font:fs+'px Arial',color:s.color||DEFAULT.color});
   // Simple flex/grid row layout for navigation bars, cards and responsive columns.

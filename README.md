@@ -25,6 +25,14 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.20.0 — Native RTE controls and layout regression
+
+- Replaces the previous fixed 360×36 generic form-control rendering with intrinsic text measurement, bounded CSS widths/heights, padding, colors and border radius.
+- Draws text from real button children instead of rendering every button as "Submit".
+- Adds a NoHello-style guide-button regression fixture confirming labels and separate compact controls are painted.
+- Existing JavaScript event handling, site-storage isolation, and HTTP diagnostics are retained.
+- Does not implement complete CSS layout or YouTube playback; real-site appearance must still be assessed after deployment.
+
 ## v0.19.0 — Integrated site storage and upstream error diagnostics
 
 - RTE JavaScript now has bounded `localStorage` and `sessionStorage` shims rather than throwing opaque-origin SecurityErrors; persistent values are isolated by website origin inside Ryftipe's own namespaced browser storage.

@@ -117,7 +117,7 @@ const server = http.createServer(async (req, res) => {
     } catch(err) { return json(res,503,{error:'GPU diagnostics unavailable',detail:String(err.message).slice(0,180)}); }
   }
   if(req.url?.startsWith('/api/rte/')){if(!authorized(req))return json(res,401,{error:'Unauthorized'});return handleRTE(req,res);}
-  const resources = { '/':'index.html','/app.js':'app.js','/rte.js':'rte.js','/rte-css.js':'rte-css.js','/rte-layout.js':'rte-layout.js','/rte-tracks.js':'rte-tracks.js','/rte-forms.js':'rte-forms.js','/rte-media.js':'rte-media.js','/rte-platform.js':'rte-platform.js','/rte-modules.js':'rte-modules.js','/rte-bridge.js':'rte-bridge.js','/rte-gradients.js':'rte-gradients.js','/rte-storage.js':'rte-storage.js','/browser-features.js':'browser-features.js','/browser-ui.js':'browser-ui.js','/rte-runtime.js':'rte-runtime.js','/sandbox.html':'sandbox.html','/style.css':'style.css' };
+  const resources = { '/':'index.html','/app.js':'app.js','/rte.js':'rte.js','/rte-css.js':'rte-css.js','/rte-layout.js':'rte-layout.js','/rte-tracks.js':'rte-tracks.js','/rte-forms.js':'rte-forms.js','/rte-media.js':'rte-media.js','/rte-platform.js':'rte-platform.js','/rte-modules.js':'rte-modules.js','/rte-bridge.js':'rte-bridge.js','/rte-gradients.js':'rte-gradients.js','/rte-controls.js':'rte-controls.js','/rte-storage.js':'rte-storage.js','/browser-features.js':'browser-features.js','/browser-ui.js':'browser-ui.js','/rte-runtime.js':'rte-runtime.js','/sandbox.html':'sandbox.html','/style.css':'style.css' };
   if (req.method !== 'GET' || !resources[req.url]) return json(res,404,{error:'Not found'});
   const filename = resources[req.url];
   const sandbox=filename==='sandbox.html';
