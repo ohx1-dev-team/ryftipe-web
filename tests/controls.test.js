@@ -22,11 +22,13 @@ test('explicit CSS widths and heights are respected',()=>{
  assert.equal(g.width,110);assert.equal(g.height,42);
 });
 test('NoHello-like guide grid renders labels and individually sized controls',()=>{
- const dom={tag:'document',children:[{tag:'html',attrs:{},children:[{tag:'body',attrs:{},children:[
-  {tag:'main',attrs:{class:'shell'},children:[{tag:'h1',attrs:{},children:[{text:'NoHello'}]},
-   {tag:'div',attrs:{class:'guides'},children:['Microsoft Teams','Slack','Discord'].map(label=>({tag:'button',attrs:{},children:[{text:label}]}))}]}
-  ]}
- ]}]}]};
+ const buttons=['Microsoft Teams','Slack','Discord'].map(label=>({tag:'button',attrs:{},children:[{text:label}]}));
+ const guide={tag:'div',attrs:{class:'guides'},children:buttons};
+ const heading={tag:'h1',attrs:{},children:[{text:'NoHello'}]};
+ const main={tag:'main',attrs:{class:'shell'},children:[heading,guide]};
+ const body={tag:'body',attrs:{},children:[main]};
+ const html={tag:'html',attrs:{},children:[body]};
+ const dom={tag:'document',attrs:{},children:[html]};
  const ctx={font:'16px Arial',measureText(text){const n=parseFloat(this.font.match(/\d+(?:\.\d+)?px/)?.[0])||16;return{width:text.length*n*.51};}};
  const css='body{margin:0}.shell{width:700px;margin:20px auto}.guides{display:flex;gap:12px}.guides button{font-size:13px;padding:7px;background-color:#f5f7fa;color:#121212}';
  const result=createLayoutCommands({document:dom,rules:parseCSS(css,1000),width:1000,ctx,url:'https://nohello.org'});
