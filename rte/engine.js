@@ -23,11 +23,14 @@ export function stylesFrom(html){return {inline:[...html.matchAll(/<style\b[^>]*
 export function validateURL(raw){const u=new URL(raw);if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.port&&![80,443].includes(+u.port))throw Error('Only public HTTP(S) URLs');const h=u.hostname.toLowerCase();if(h==='localhost'||/\.(local|internal|test|invalid|localhost)$/.test(h))throw Error('Private hostname');return u;}
 function publicIP(ip){if(net.isIP(ip)===4){const p=ip.split('.').map(Number);return !(p[0]===0||p[0]===10||p[0]===127||p[0]>=224||(p[0]===169&&p[1]===254)||(p[0]===172&&p[1]>=16&&p[1]<=31)||(p[0]===192&&(p[1]===168||p[1]===0))||(p[0]===100&&p[1]>=64&&p[1]<=127));}if(net.isIP(ip)===6){const v=ip.toLowerCase();if(v.startsWith('::ffff:'))return publicIP(v.slice(7));return !(v==='::'||v==='::1'||v.startsWith('fc')||v.startsWith('fd')||/^fe[89ab]/.test(v)||v.startsWith('ff'));}return false;}
 async function checked(raw){const u=validateURL(raw);const ips=await dns.lookup(u.hostname,{all:true});if(!ips.length||!ips.every(x=>publicIP(x.address)))throw Error('Private IP blocked');return u;}
+export class UpstreamHTTPError extends Error{
+ constructor(status,url){super('Website returned HTTP '+status);this.name='UpstreamHTTPError';this.upstreamStatus=status;this.site=new URL(url).hostname;}
+}
 export async function fetchResource(raw,kind='html'){
  for(let i=0;i<4;i++){
   const u=await checked(raw);const r=await fetch(u,{redirect:'manual',signal:AbortSignal.timeout(12000),headers:{Accept:kind==='html'?'text/html':kind==='css'?'text/css':kind==='script'?'text/javascript,application/javascript':kind==='data'?'application/json,text/plain,text/html,application/xml,*/*':'image/*','User-Agent':'RyftipeEngine/0.4'}});
   if([301,302,303,307,308].includes(r.status)){const loc=r.headers.get('location');await r.body?.cancel();if(!loc)throw Error('Invalid redirect');raw=new URL(loc,u).href;continue;}
-  if(!r.ok)throw Error('HTTP '+r.status);
+  if(!r.ok){await r.body?.cancel();throw new UpstreamHTTPError(r.status,u.href);}
   const type=(r.headers.get('content-type')||'').toLowerCase();
   if(kind==='html'&&!/text\/html|application\/xhtml\+xml/.test(type)||kind==='css'&&!type.includes('text/css')||kind==='script'&&!/(javascript|ecmascript|text\/plain)/.test(type)||kind==='data'&&!/(?:^text\/|json|xml|javascript)/.test(type)||kind==='image'&&!/^image\/(png|jpeg|webp|gif|avif|bmp)/.test(type))throw Error('Unsupported content type');
   const limit=kind==='html'?1200000:kind==='css'?300000:kind==='script'?160000:kind==='data'?524288:800000,reader=r.body.getReader();let len=0;const chunks=[];

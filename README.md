@@ -25,6 +25,14 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.19.0 — Integrated site storage and upstream error diagnostics
+
+- RTE JavaScript now has bounded `localStorage` and `sessionStorage` shims rather than throwing opaque-origin SecurityErrors; persistent values are isolated by website origin inside Ryftipe's own namespaced browser storage.
+- Website scripts do not receive the host application's localStorage, authentication tokens or other origins' values. Session data is discarded on navigation.
+- Extended the headless Chromium integration test to verify sandboxed storage writes and reads alongside JavaScript modules, DOM events, fetch/XHR and Shadow DOM.
+- Upstream site HTTP errors now retain their website status in RTE diagnostics, rather than becoming an opaque renderer error. A website that returns 418 may still refuse access.
+- The experimental RTE remains incomplete: there is no full standards-compliant JavaScript/DOM/CSS/video implementation and YouTube playback is not working.
+
 ## v0.18.0 — Modern website CSS and rendering capstone
 
 - Recursively loads bounded CSS `@import` dependencies (including CSS supplied by external stylesheets), preserves cascade order, resolves stylesheet-relative URLs, and reports per-page stylesheet successes/failures.

@@ -10,5 +10,5 @@ export async function handleRTE(req,res){
   if(u.pathname==='/api/rte/script'){const file=await fetchResource(raw,'script');res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(file.body);}
   if(u.pathname==='/api/rte/image'){const image=await fetchResource(raw,'image');res.writeHead(200,{'Content-Type':image.type.split(';')[0],'Cache-Control':'private, max-age=120','X-Content-Type-Options':'nosniff'});return res.end(image.body);}
   return send(404,{error:'Unknown endpoint'});
- }catch(e){return send(422,{error:String(e.message||e).slice(0,200)});}
+ }catch(e){if(e?.upstreamStatus)return send(502,{error:String(e.message).slice(0,200),upstreamStatus:e.upstreamStatus,site:e.site,reason:'The destination website rejected the request; this is not an RTE rendering error.'});return send(422,{error:String(e.message||e).slice(0,200)});}
 }

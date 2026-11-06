@@ -1,3 +1,4 @@
+import {readSiteStorage,applySiteStorageMessage} from '/rte-storage.js';
 import {normalizeRTEEvent} from '/rte-bridge.js';
 import {loadModuleGraph} from '/rte-modules.js';
 import {allowedPageRequest,containsModuleImports} from '/rte-platform.js';
@@ -29,11 +30,12 @@ export function createScriptRuntime({onSnapshot,onError}){
   listener=event=>{
    if(event.source!==thisFrame.contentWindow||event.origin!=='null')return;
    const m=event.data;if(!m||typeof m!=='object')return;
-   if(m.type==='rte-loaded'){send('load',{tree:page.dom,title:page.title,url:page.url});return;}
+   if(m.type==='rte-loaded'){send('load',{tree:page.dom,title:page.title,url:page.url,storage:readSiteStorage(localStorage,page.url)});return;}
    if(m.token!==token||stopped)return;
    if(m.type==='rte-ready'){readyResolver?.(true);readyResolver=null;}
    if(m.type==='rte-executed'){if(m.ok)telemetry.executed++;else telemetry.failed++;executionResolver?.(Boolean(m.ok));executionResolver=null;if(!m.ok)onError?.('Website script failed: '+String(m.error||'unknown'));}
    if(m.type==='rte-fetch'){void proxyFetch(m);return;}
+   if(m.type==='rte-storage'){applySiteStorageMessage(localStorage,currentPage,m);return;}
    if(m.type==='rte-event-result'){const callback=pendingEvents.get(m.requestId);if(callback){pendingEvents.delete(m.requestId);callback(Boolean(m.prevented));}return;}
    if(m.type==='rte-snapshot'){
     if(!m.body||m.body.tag!=='body'||typeof m.title!=='string')return;

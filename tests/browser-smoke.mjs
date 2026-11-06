@@ -6,7 +6,7 @@ import {dirname,resolve} from 'node:path';
 import {chromium} from 'playwright';
 // Browser-level sandbox integration smoke. Fixtures are local; no YouTube claim.
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..','public');
-const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js'],['/rte-modules.js','rte-modules.js'],['/rte-bridge.js','rte-bridge.js'],['/rte.js','rte.js'],['/rte-css.js','rte-css.js'],['/rte-layout.js','rte-layout.js'],['/rte-tracks.js','rte-tracks.js'],['/rte-forms.js','rte-forms.js'],['/rte-media.js','rte-media.js'],['/rte-gradients.js','rte-gradients.js']]);
+const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js'],['/rte-modules.js','rte-modules.js'],['/rte-bridge.js','rte-bridge.js'],['/rte.js','rte.js'],['/rte-css.js','rte-css.js'],['/rte-layout.js','rte-layout.js'],['/rte-tracks.js','rte-tracks.js'],['/rte-forms.js','rte-forms.js'],['/rte-media.js','rte-media.js'],['/rte-gradients.js','rte-gradients.js'],['/rte-storage.js','rte-storage.js']]);
 const server=http.createServer(async(req,res)=>{
  if(req.url?.startsWith('/api/rte/data?url=')&&new URL(req.url,'http://localhost').searchParams.get('url')==='https://example.org/test.json'){
   res.writeHead(200,{'Content-Type':'application/json'});
@@ -42,6 +42,7 @@ try{
  await page.goto(base,{waitUntil:'load'});
  const result=await page.evaluate(async()=>{
   const {createScriptRuntime}=await import('/rte-runtime.js');
+  localStorage.setItem('ryftipe.theme','private-host-setting');
   window.__snapshots=[];window.__errors=[];
   const runtime=createScriptRuntime({onSnapshot:(body)=>window.__snapshots.push(JSON.stringify(body)),onError:(message)=>window.__errors.push(message)});
   window.__rte=runtime;
@@ -54,7 +55,8 @@ try{
     {kind:'classic',inline:'const host=document.createElement("div");host.id="shadow-host";const shadow=host.attachShadow({mode:"open"});shadow.innerHTML="<span>shadow-ok</span>";document.body.append(host);'},
     {kind:'module',inline:'import {dependency} from "./dep.js";document.getElementById("status").textContent+=" "+dependency;'},
     {kind:'classic',inline:'const btn=document.getElementById("interactive");btn.addEventListener("click",event=>{event.preventDefault();document.getElementById("status").textContent+=" click-ok"});document.getElementById("field").addEventListener("input",event=>{document.getElementById("status").textContent+=" input-"+event.target.value})'},
-    {kind:'classic',inline:'const xhr=new XMLHttpRequest();xhr.open("GET","/test.json");xhr.onload=()=>{const data=JSON.parse(xhr.responseText);document.getElementById("status").textContent+=" xhr-"+data.hello};xhr.send();'}
+    {kind:'classic',inline:'const xhr=new XMLHttpRequest();xhr.open("GET","/test.json");xhr.onload=()=>{const data=JSON.parse(xhr.responseText);document.getElementById("status").textContent+=" xhr-"+data.hello};xhr.send();'},
+    {kind:'classic',inline:'localStorage.setItem("site-key","stored-ok");sessionStorage.setItem("session-key","session-ok");document.getElementById("status").textContent+=" "+localStorage.getItem("site-key")+" "+sessionStorage.getItem("session-key")+" "+(localStorage.getItem("ryftipe.theme")===null?"isolated-ok":"storage-leak");'}
    ]};
   const loaded=await runtime.load(data);
   return {loaded,metrics:runtime.metrics};
@@ -71,16 +73,20 @@ try{
  await page.waitForFunction(()=>window.__snapshots?.some(s=>s.includes('input-edited')),null,{timeout:4000});
  const outcome=await page.evaluate(()=>({snapshots:window.__snapshots.slice(-8),errors:window.__errors,metrics:window.__rte.metrics}));
  console.log('MODULE_GRAPH_DEBUG '+JSON.stringify({metrics:outcome.metrics,errors:outcome.errors,snapshots:outcome.snapshots}));
- assert.equal(outcome.metrics.executed,7,'Classic and module scripts must execute');
+ assert.equal(outcome.metrics.executed,8,'Classic and module scripts must execute');
  assert.ok(outcome.metrics.networkRequests>=2,'The fetch bridge should receive a request');
  assert.equal(outcome.metrics.networkFailures,0);
  assert.ok(outcome.snapshots.some(s=>s.includes('classic-ok')&&s.includes('module-ok')&&s.includes('network-ok')));
  assert.ok(outcome.snapshots.some(s=>s.includes('click-ok')&&s.includes('input-edited')),'DOM events and input updates must reach the RTE renderer');
+ assert.ok(outcome.snapshots.some(s=>s.includes('stored-ok')&&s.includes('session-ok')&&s.includes('isolated-ok')),'Site storage must not expose host preferences');
+ await page.waitForFunction(()=>Boolean(localStorage.getItem('ryftipe.site-storage:https://example.org')),{timeout:4000});
+ const saved=await page.evaluate(()=>({host:localStorage.getItem('ryftipe.theme'),site:JSON.parse(localStorage.getItem('ryftipe.site-storage:https://example.org')||'{}')}));
+ assert.equal(saved.host,'private-host-setting');assert.equal(saved.site['site-key'],'stored-ok');
  assert.ok(outcome.snapshots.some(s=>s.includes('xhr-network-ok')),'XHR must update DOM after fetching');
  assert.ok(outcome.snapshots.some(s=>s.includes('graph-ok')),'Static module import should modify the DOM');
  assert.ok(outcome.metrics.moduleDependencies>=1);
  assert.ok(outcome.snapshots.some(s=>s.includes('shadow-ok')),'Open Shadow DOM text must appear in RTE snapshots');
- console.log('PASS: integrated RTE modules, fetch, XHR, DOM click cancellation, input edits and open Shadow DOM');
+ console.log('PASS: RTE modules, fetch, XHR, DOM events, isolated site storage and open Shadow DOM');
  console.log(JSON.stringify(outcome.metrics));
  await page.evaluate(()=>window.__rte.dispose());
  const painted=await page.evaluate(async()=>{
