@@ -33,3 +33,10 @@ test('RTE graph refuses cyclic imports and budget overruns',async()=>{
  await assert.rejects(()=>loadModuleGraph('https://fixture.test/a.js',url=>files.get(url)),/Cyclic/);
  await assert.rejects(()=>loadModuleGraph('https://fixture.test/a.js',()=>Promise.resolve('x'.repeat(500)),{maxBytes:100}),/byte limit/);
 });
+
+test('RTE allows a bounded 220 KB static ES module',async()=>{
+ const source='/*'+'x'.repeat(220000)+'*/export const ok=true;';
+ const result=await loadModuleGraph('https://fixture.test/bundle.js',async()=>source);
+ assert.equal(result.modules[0].source.length,source.length);
+ assert.equal(result.bytes,source.length);
+});

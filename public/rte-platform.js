@@ -1,5 +1,7 @@
 // URL and request policy shared by RTE's sandbox data bridge.
 // Read-only, same-origin HTTP(S), bounded resources; never forwards credentials.
+export const MAX_SCRIPT_CHARS=900000;
+export const MAX_PAGE_SCRIPT_CHARS=2400000;
 export function allowedPageRequest(pageURL, raw, method='GET'){
  if(String(method).toUpperCase()!=='GET')return null;
  let page,target;
@@ -23,5 +25,6 @@ export function containsModuleImports(source){
 export function limitScriptEntries(list,max=20){
  if(!Array.isArray(list))return [];
  return list.filter(x=>x&&['classic','module'].includes(x.kind)&&(typeof x.src==='string'||typeof x.inline==='string'))
- .slice(0,max).map(x=>({kind:x.kind,...(x.src?{src:String(x.src).slice(0,2048)}:{inline:String(x.inline).slice(0,160000)})}));
+ .filter(x=>!x.inline||x.inline.length<=MAX_SCRIPT_CHARS)
+ .slice(0,max).map(x=>({kind:x.kind,...(x.src?{src:String(x.src).slice(0,2048)}:{inline:String(x.inline)})}));
 }

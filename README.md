@@ -1,3 +1,12 @@
+## v0.24.0 — RTE JavaScript bootstrapping and document-preservation capstone
+
+- Raised the per-script JavaScript budget from 160 KB to 900 KB, with a total client-side page script budget of 2.4 MB. Larger same-origin external classic scripts and static ES modules can be attempted inside the isolated RTE sandbox.
+- Oversized inline scripts are **skipped rather than silently truncated** into invalid JavaScript. Resource limits remain bounded.
+- Preserves the standards-parsed document until a script actually changes meaningful visible content; avoids replacing a rich website with an unchanged, simplified sandbox snapshot.
+- Adds script-selection and execution diagnostics (declared/selected, executed/failed/skipped, byte-budget skips, byte counts and last error) to `ryftipe://engine`. Dynamic-site notices now report execution results after attempting scripts.
+- Adds browser-level testing of an actual 230 KB externally fetched JavaScript bundle and unit tests for large modules, snapshot preservation and budget handling.
+- **Important limitation:** Successfully executing individual scripts does not mean full app initialization. YouTube's JS APIs, module ecosystem and adaptive playback remain incomplete; the live YouTube probe is still informational.
+
 ## v0.23.0 — Clean startup and browser navigation capstone
 
 - Removed production example-site startup navigation. Ryftipe always opens **ryftipe://home**, and the streamed Chromium session starts at `about:blank` rather than silently loading a third-party domain.

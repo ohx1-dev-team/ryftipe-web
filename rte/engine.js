@@ -1,6 +1,6 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
-import {classifyScript,limitScriptEntries} from '../public/rte-platform.js';
+import {classifyScript,limitScriptEntries,MAX_SCRIPT_CHARS} from '../public/rte-platform.js';
 import {collectStylesheets} from './stylesheets.js';
 // RTE tokenizer / DOM tree builder. This engine never evaluates website scripts.
 const VOID=new Set('area base br col embed hr img input link meta param source track wbr'.split(' '));
@@ -33,7 +33,7 @@ export async function fetchResource(raw,kind='html'){
   if(!r.ok){await r.body?.cancel();throw new UpstreamHTTPError(r.status,u.href);}
   const type=(r.headers.get('content-type')||'').toLowerCase();
   if(kind==='html'&&!/text\/html|application\/xhtml\+xml/.test(type)||kind==='css'&&!type.includes('text/css')||kind==='script'&&!/(javascript|ecmascript|text\/plain)/.test(type)||kind==='data'&&!/(?:^text\/|json|xml|javascript)/.test(type)||kind==='image'&&!/^image\/(png|jpeg|webp|gif|avif|bmp)/.test(type))throw Error('Unsupported content type');
-  const limit=kind==='html'?1200000:kind==='css'?300000:kind==='script'?160000:kind==='data'?524288:800000,reader=r.body.getReader();let len=0;const chunks=[];
+  const limit=kind==='html'?1200000:kind==='css'?300000:kind==='script'?MAX_SCRIPT_CHARS:kind==='data'?524288:800000,reader=r.body.getReader();let len=0;const chunks=[];
   try{while(true){const {value,done}=await reader.read();if(done)break;len+=value.length;if(len>limit)throw Error('Resource too large');chunks.push(value);}}finally{reader.cancel().catch(()=>{});}
   return {url:u.href,body:Buffer.concat(chunks),type};
  }
@@ -57,5 +57,6 @@ export async function loadPage(raw){
  const heavySite=/^(?:www\.|m\.)?(?:youtube\.com|youtu\.be|google\.com|facebook\.com|instagram\.com|tiktok\.com|netflix\.com|discord\.com)$/.test(new URL(page.url).hostname);
  const dynamic=heavySite||(scriptCount>=15&&(appHints||scriptCount>=28));
  const scripts=scriptsFrom(html);
- return {url:page.url,markup:html.slice(0,1800000),title:entities(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,420000),stylesheets:stylesheetResult.diagnostics,scripts,engine:'RTE/0.18',compatibility:{javascriptRequired:dynamic,scriptCount,reason:dynamic?'This site depends on JavaScript and browser APIs that RTE does not implement.':'Experimental HTML/CSS support.'}};
+ const scriptStats={declared:scriptCount,selected:scripts.length,omitted:Math.max(0,scriptCount-scripts.length)};
+ return {url:page.url,markup:html.slice(0,1800000),title:entities(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,420000),stylesheets:stylesheetResult.diagnostics,scripts,scriptStats,engine:'RTE/0.18',compatibility:{javascriptRequired:dynamic,scriptCount,reason:dynamic?'This site depends on JavaScript and browser APIs that RTE does not implement.':'Experimental HTML/CSS support.'}};
 }

@@ -138,14 +138,14 @@ window.addEventListener('message',e=>{
  if(!active||m.token!==token)return;
  if(m.action==='fetch-result'){const settle=pendingFetch.get(Number(m.id));if(settle){pendingFetch.delete(Number(m.id));settle(m);}return;}
  if(m.action==='run'){
-  if(m.scriptType!=='module-graph'&&(typeof m.code!=='string'||m.code.length>180000))return;
+  if(m.scriptType!=='module-graph'&&(typeof m.code!=='string'||m.code.length>900000))return;
   if(m.scriptType==='module-graph'){
    const blobURLs=new Map();
    try{
     if(!Array.isArray(m.modules)||m.modules.length>25)throw Error('Invalid module graph');
     const imports=/\b(?:import\s*(?:[\w*{},\s]+\s+from\s*)?|export\s+(?:(?:\*|\{[^}]*\})\s+from\s*))(['"])([^'"\n]+)\1/g;
     for(const record of m.modules){
-     if(typeof record.source!=='string'||record.source.length>160000)throw Error('Module size limit');
+     if(typeof record.source!=='string'||record.source.length>900000)throw Error('Module size limit');
      const replacements=[];
      for(const match of record.source.matchAll(imports)){
       const dependency=record.dependencies?.find(item=>item.specifier===match[2]);

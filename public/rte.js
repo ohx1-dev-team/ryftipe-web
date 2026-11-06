@@ -18,7 +18,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  let pageBackground='#fff',lastWidth=0,zoom=1,lastFindIndex=-1,stylesheetStats={};
  let scriptRuntime=null,scriptStatus='off',lastScriptMetrics={};
  const docRenderer=createDocumentRenderer(canvas,{onNavigate,onError,onEvent:payload=>scriptRuntime?.event(payload)??false,onStats});
- let currentMarkup='',initialDocument=true;
+ let currentMarkup='',initialDocument=true,scriptSourceStats={};
  const documentMode=()=>Boolean(documentLayoutEnabled());
  const images=new Map();let repaintTimer=0,paintRaf=0,paintCostMs=0,averagePaintMs=0,paintCount=0;
  function style(n,parent,ancestors){return computeStyle(n,parent,rules,ancestors);}
@@ -105,7 +105,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  async function navigate(target,{replace=false}={}){
   const token=++generation;onLocation?.({url:target,loading:true});
   try{const r=await fetch('/api/rte/document?url='+encodeURIComponent(target),{cache:'no-store'}),page=await r.json();if(token!==generation)return false;if(!r.ok)throw Error(page.error||'Page load failed');
-   url=page.url;doc=page.dom;stylesheetStats=page.stylesheets||{};mediaLayer.reset(url);
+   url=page.url;doc=page.dom;stylesheetStats=page.stylesheets||{};scriptSourceStats=page.scriptStats||{};mediaLayer.reset(url);
    currentMarkup=page.markup||'';initialDocument=true;
    if(documentMode()){
     if(currentMarkup)docRenderer.renderHTML(currentMarkup,page.css||'',url);
@@ -128,7 +128,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
      onError:msg=>{if(token===generation)onError?.(msg);}
     });
     const running=scriptRuntime;scriptStatus='loading';
-    running.load(page).then(()=>{if(token===generation){scriptStatus='ready';lastScriptMetrics=running.metrics;}}).catch(e=>{if(token===generation){scriptStatus='failed';lastScriptMetrics=running.metrics;onError?.('RTE JavaScript: '+e.message);}});
+    running.load(page).then(()=>{if(token===generation){scriptStatus='ready';lastScriptMetrics=running.metrics;if(page.compatibility?.javascriptRequired)onCompatibility?.({...page.compatibility,url:page.url,completed:true,scriptStats:page.scriptStats,scriptMetrics:running.metrics});}}).catch(e=>{if(token===generation){scriptStatus='failed';lastScriptMetrics=running.metrics;onError?.('RTE JavaScript: '+e.message);}});
    }
    return true;
   }catch(e){if(token===generation){if(documentMode())try{docRenderer.showError(target,e.message);show();}catch{}onError?.(e.message);onLocation?.({url:target,title:'Page unavailable',loading:false});}return false;}
@@ -196,5 +196,5 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
    try{onNavigate?.(getFormURL(url,v.form,v.submit));}catch(err){onError?.(err.message);}
   }else if(v.input)layout();
  });
- return {navigate,back,forward,reload,show,hide,dispose,resize:layout,setZoom,findText,get zoom(){return zoom;},get active(){return active;},get url(){return url;},get scriptStatus(){return scriptStatus;},get stats(){return {mode:documentMode()?'document':'canvas',...(documentMode()?docRenderer.stats:{}),commands:commands.length,textCommands:commands.filter(c=>c.kind==='text').length,gradientCommands:commands.filter(c=>c.kind==='gradient').length,cssRules:rules.length,stylesheetStats,documentHeight:documentMode()?docRenderer.stats.documentHeight:height,zoom,scriptStatus,paintMs:paintCostMs,averagePaintMs,paintCount,scriptMetrics:scriptRuntime?.metrics||lastScriptMetrics};}};
+ return {navigate,back,forward,reload,show,hide,dispose,resize:layout,setZoom,findText,get zoom(){return zoom;},get active(){return active;},get url(){return url;},get scriptStatus(){return scriptStatus;},get stats(){return {mode:documentMode()?'document':'canvas',...(documentMode()?docRenderer.stats:{}),commands:commands.length,textCommands:commands.filter(c=>c.kind==='text').length,gradientCommands:commands.filter(c=>c.kind==='gradient').length,cssRules:rules.length,stylesheetStats,scriptSourceStats,documentHeight:documentMode()?docRenderer.stats.documentHeight:height,zoom,scriptStatus,paintMs:paintCostMs,averagePaintMs,paintCount,scriptMetrics:scriptRuntime?.metrics||lastScriptMetrics};}};
 }

@@ -1,13 +1,13 @@
 import {readSiteStorage,applySiteStorageMessage} from '/rte-storage.js';
 import {normalizeRTEEvent} from '/rte-bridge.js';
 import {loadModuleGraph} from '/rte-modules.js';
-import {allowedPageRequest,containsModuleImports} from '/rte-platform.js';
+import {allowedPageRequest,MAX_SCRIPT_CHARS,MAX_PAGE_SCRIPT_CHARS} from '/rte-platform.js';
 // RTE isolated script runner. Remote JavaScript never executes in Ryftipe's privileged page.
 export function createScriptRuntime({onSnapshot,onError}){
  let iframe=null,token='',listener=null,readyResolver=null,executionResolver=null,stopped=false,currentPage='';
  const pendingEvents=new Map();let nextEvent=0;
  const MAX_SCRIPTS=20;
- let telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0,moduleGraphs:0,moduleDependencies:0};
+ let telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0,moduleGraphs:0,moduleDependencies:0,bytesLoaded:0,limited:0,lastError:''};
  function release(){
   stopped=true;if(listener)window.removeEventListener('message',listener);
   for(const cb of pendingEvents.values())cb(false);pendingEvents.clear();
@@ -19,7 +19,7 @@ export function createScriptRuntime({onSnapshot,onError}){
   if(iframe?.contentWindow)iframe.contentWindow.postMessage({...other,type:'rte-command',token,action},'*');
  }
  async function load(page){
-  telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0,moduleGraphs:0,moduleDependencies:0};
+  telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0,moduleGraphs:0,moduleDependencies:0,bytesLoaded:0,limited:0,lastError:''};
   release();stopped=false;token=crypto.randomUUID();currentPage=page.url;
   iframe=document.createElement('iframe');
   iframe.setAttribute('sandbox','allow-scripts');
@@ -33,7 +33,7 @@ export function createScriptRuntime({onSnapshot,onError}){
    if(m.type==='rte-loaded'){send('load',{tree:page.dom,title:page.title,url:page.url,storage:readSiteStorage(localStorage,page.url)});return;}
    if(m.token!==token||stopped)return;
    if(m.type==='rte-ready'){readyResolver?.(true);readyResolver=null;}
-   if(m.type==='rte-executed'){if(m.ok)telemetry.executed++;else telemetry.failed++;executionResolver?.(Boolean(m.ok));executionResolver=null;if(!m.ok)onError?.('Website script failed: '+String(m.error||'unknown'));}
+   if(m.type==='rte-executed'){if(m.ok)telemetry.executed++;else telemetry.failed++;executionResolver?.(Boolean(m.ok));executionResolver=null;if(!m.ok){telemetry.lastError=String(m.error||'unknown').slice(0,140);onError?.('Website script failed: '+telemetry.lastError);}}
    if(m.type==='rte-fetch'){void proxyFetch(m);return;}
    if(m.type==='rte-storage'){applySiteStorageMessage(localStorage,currentPage,m);return;}
    if(m.type==='rte-event-result'){const callback=pendingEvents.get(m.requestId);if(callback){pendingEvents.delete(m.requestId);callback(Boolean(m.prevented));}return;}
@@ -74,7 +74,9 @@ export function createScriptRuntime({onSnapshot,onError}){
    if(stopped)break;
    try{
     const code=entry.src?await fetchScript(entry.src):String(entry.inline||'');
-    if(!code||code.length>160000){telemetry.skipped++;continue;}
+    if(!code){telemetry.skipped++;continue;}
+    if(code.length>MAX_SCRIPT_CHARS||telemetry.bytesLoaded+code.length>MAX_PAGE_SCRIPT_CHARS){telemetry.skipped++;telemetry.limited++;telemetry.lastError='Script size/total byte budget exceeded';continue;}
+    telemetry.bytesLoaded+=code.length;
     let instruction={scriptType:'classic',code};
     if(entry.kind==='module'){
      const entryURL=entry.src?new URL(entry.src,page.url).href:page.url;
@@ -86,7 +88,7 @@ export function createScriptRuntime({onSnapshot,onError}){
     send('run',instruction);
     const ok=await Promise.race([ack,new Promise(resolve=>setTimeout(()=>resolve(false),5000))]);
     if(!ok)telemetry.skipped++;
-   }catch(err){telemetry.skipped++;onError?.('Script skipped: '+String(err.message||err).slice(0,120));}
+   }catch(err){telemetry.skipped++;telemetry.lastError=String(err.message||err).slice(0,140);onError?.('Script skipped: '+telemetry.lastError);}
   }
   if(!stopped)send('lifecycle');
   return !stopped;
