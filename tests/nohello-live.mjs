@@ -35,17 +35,37 @@ try{
  await tab.locator('#url').fill(target);
  await tab.locator('#url').press('Enter');
  await delay(10000);
+ await tab.waitForFunction(()=>{
+  const frame=document.querySelector('#rte-document');
+  return frame&&!frame.hidden&&frame.contentDocument?.readyState==='complete'&&frame.contentDocument?.body;
+ },null,{timeout:8000}).catch(()=>{});
  result.render=await tab.evaluate(()=>{
-  const canvas=document.getElementById('rte-screen'),data=canvas?.getContext('2d')?.getImageData(0,0,canvas.width,canvas.height);
-  const colors=new Set();
-  if(data)for(let i=0;i<144;i++){
-   const x=Math.floor(i%12*canvas.width/12),y=Math.floor(Math.floor(i/12)*canvas.height/12),offset=(y*canvas.width+x)*4;
-   colors.add([data.data[offset],data.data[offset+1],data.data[offset+2]].join(','));
-  }
-  return {activeURL:document.getElementById('url')?.value,canvasVisible:canvas&&!canvas.hidden,colorSamples:colors.size,notice:document.getElementById('notice')?.textContent||''};
+  const frame=document.querySelector('#rte-document'),doc=frame?.contentDocument;
+  const body=doc?.body,heading=doc?.querySelector('h1');
+  const main=doc?.querySelector('main'),rect=main?.getBoundingClientRect();
+  const links=doc?[...doc.querySelectorAll('a[href]')]:[];
+  const computed=heading&&frame?.contentWindow?.getComputedStyle(heading);
+  return {
+   mode:frame&&!frame.hidden?'document':'canvas',
+   activeURL:document.getElementById('url')?.value,
+   documentReady:doc?.readyState||'unavailable',
+   heading:heading?.textContent?.slice(0,100)||'',
+   visibleTextCharacters:body?.innerText?.trim().length||0,
+   domNodes:doc?.querySelectorAll('*')?.length||0,
+   links:links.length,
+   stylesheetCount:doc?.styleSheets?.length||0,
+   mainWidth:rect?Math.round(rect.width):null,
+   mainOffsetX:rect?Math.round(rect.x):null,
+   headingFont:computed?.fontFamily||'',
+   notice:document.getElementById('notice')?.textContent||''
+  };
  });
+ try{
+  const frame=tab.locator('#rte-document');
+  if(await frame.count()&&!result.render?.notice)await frame.screenshot({path:'nohello-rte.png',timeout:5000});
+ }catch(error){result.screenshotError=String(error.message).slice(0,140);}
  result.browserErrors=errors.slice(0,6);
- result.status=result.render?.canvasVisible&&result.document?.htmlTextNodes>0?'render-attempted':'not-rendered';
+ result.status=result.render?.mode==='document'&&result.render?.visibleTextCharacters>100&&result.render?.domNodes>20?'document-rendered':'render-incomplete';
  console.log('NOHELLO_RTE_PROBE '+JSON.stringify(result));
 }catch(error){result.status='probe-error';result.error=String(error.message||error).slice(0,250);console.log('NOHELLO_RTE_PROBE '+JSON.stringify(result));process.exitCode=1;}
 finally{await browser?.close();server.kill('SIGTERM');await Promise.race([new Promise(resolve=>server.once('exit',resolve)),delay(1800)]);if(server.exitCode===null)server.kill('SIGKILL');}

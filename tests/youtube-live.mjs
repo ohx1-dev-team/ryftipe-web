@@ -33,15 +33,16 @@ try{
  await page.locator('#url').press('Enter');
  await delay(18000);
  const initial=await page.evaluate(()=>{
-  const video=document.querySelector('.rte-media-layer video');
+  const frame=document.querySelector('#rte-document'),site=frame?.contentDocument;
+  const video=site?.querySelector('video')||document.querySelector('.rte-media-layer video');
   const notice=document.querySelector('#notice');
-  return {rteCanvasVisible:!document.querySelector('#rte-screen')?.hidden,videoElements:document.querySelectorAll('.rte-media-layer video').length,readyState:video?.readyState??0,currentTime:video?.currentTime??0,notice:notice&&!notice.hidden?notice.textContent:'',compatibility:!document.querySelector('#rte-warning')?.hidden,documentTitle:document.title};
+  return {renderer:frame&&!frame.hidden?'document':'canvas',siteDomNodes:site?.querySelectorAll('*')?.length||0,siteHeading:site?.querySelector('h1')?.textContent?.slice(0,100)||'',videoElements:(site?.querySelectorAll('video')?.length||0)+document.querySelectorAll('.rte-media-layer video').length,readyState:video?.readyState??0,currentTime:video?.currentTime??0,notice:notice&&!notice.hidden?notice.textContent:'',compatibility:!document.querySelector('#rte-warning')?.hidden,documentTitle:document.title};
  });
  record={...initial,status:initial.videoElements?'video-present':'video-not-present',errors:errors.slice(0,6)};
  if(initial.videoElements){
-  await page.evaluate(()=>document.querySelector('.rte-media-layer video')?.play().catch(()=>{}));
+  await page.evaluate(()=>(document.querySelector('#rte-document')?.contentDocument?.querySelector('video')||document.querySelector('.rte-media-layer video'))?.play().catch(()=>{}));
   await delay(3200);
-  const after=await page.evaluate(()=>{const video=document.querySelector('.rte-media-layer video');return {readyState:video?.readyState||0,currentTime:video?.currentTime||0,errorCode:video?.error?.code||null};});
+  const after=await page.evaluate(()=>{const video=document.querySelector('#rte-document')?.contentDocument?.querySelector('video')||document.querySelector('.rte-media-layer video');return {readyState:video?.readyState||0,currentTime:video?.currentTime||0,errorCode:video?.error?.code||null};});
   record={...record,after,playback:after.currentTime>initial.currentTime+.5&&after.readyState>=2};
  }else record.playback=false;
  console.log('YOUTUBE_RTE_PROBE '+JSON.stringify(record));

@@ -25,6 +25,13 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.22.1 — Live document-layout verification
+
+- Updated the real nohello.org and YouTube probes to inspect the new sandboxed DOM renderer instead of the old hidden Canvas display.
+- NoHello diagnostics now report visible text, DOM node count, CSS stylesheet count, heading, layout dimensions and page visibility.
+- Live NoHello screenshots are uploaded as GitHub Actions build artifacts when available, so actual website rendering can be visually inspected.
+- This verification patch does not imply YouTube is playable; the live probe still requires a real playing video.
+
 ## v0.22.0 — Document layout architecture
 
 - RTE's default webpage display uses **a script-disabled sandboxed HTML document** styled by the host browser's standards-based CSS layout engine, rather than hand-painted Canvas boxes.

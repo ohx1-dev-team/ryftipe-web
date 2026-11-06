@@ -36,6 +36,13 @@ jobs:
       - name: Live nohello.org RTE rendering probe (informational)
         continue-on-error: true
         run: node tests/nohello-live.mjs
+      - name: Upload NoHello layout screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nohello-rte-render
+          path: nohello-rte.png
+          if-no-files-found: ignore
       - name: Read version
         id: version
         run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
