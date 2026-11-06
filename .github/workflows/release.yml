@@ -27,7 +27,7 @@ jobs:
       - name: Install browser smoke dependencies
         run: |
           npm install --ignore-scripts --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
       - name: Browser-level RTE smoke test
         run: node tests/browser-smoke.mjs
       - name: Real YouTube RTE compatibility probe (informational)
