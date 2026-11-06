@@ -11,13 +11,13 @@ const OMIT=new Set('head meta link title script style noscript template'.split('
 const base={color:'#1f2937','font-size':'16px','font-weight':'normal','font-family':'Arial'};
 const defaults={body:{'background-color':'#fff'},a:{color:'#2052af'},h1:{'font-size':'32px','font-weight':'bold'},h2:{'font-size':'26px','font-weight':'bold'},h3:{'font-size':'21px','font-weight':'bold'},b:{'font-weight':'bold'},strong:{'font-weight':'bold'},small:{'font-size':'12px'},code:{'font-family':'monospace'}};
 function px(value,fallback=0,base=700){return cssLength(value,fallback,base,16,typeof window!=='undefined'?window.innerWidth:base);}
-export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompatibility,javascriptEnabled=()=>true,imagesEnabled=()=>true,documentLayoutEnabled=()=>true}){
+export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompatibility,onFallback=()=>{},onOpenDirect=()=>{},javascriptEnabled=()=>true,imagesEnabled=()=>true,documentLayoutEnabled=()=>true}){
  const c=canvas.getContext('2d',{alpha:false});
  const mediaLayer=createMediaLayer(canvas,{onError:message=>onError?.(message)});
  let url='',doc=null,rules=[],cssSource='',scroll=0,commands=[],hits=[],height=0,active=false,generation=0,history=[],position=-1;
  let pageBackground='#fff',lastWidth=0,zoom=1,lastFindIndex=-1,stylesheetStats={};
  let scriptRuntime=null,scriptStatus='off',lastScriptMetrics={};
- const docRenderer=createDocumentRenderer(canvas,{onNavigate,onError,onEvent:payload=>scriptRuntime?.event(payload)??false,onStats});
+ const docRenderer=createDocumentRenderer(canvas,{onNavigate,onError,onFallback,onOpenDirect,onEvent:payload=>scriptRuntime?.event(payload)??false,onStats});
  let currentMarkup='',initialDocument=true,scriptSourceStats={};
  const documentMode=()=>Boolean(documentLayoutEnabled());
  const images=new Map();let repaintTimer=0,paintRaf=0,paintCostMs=0,averagePaintMs=0,paintCount=0;

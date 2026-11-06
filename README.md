@@ -1,3 +1,12 @@
+## v0.25.0 — Website-access recovery capstone
+
+- RTE's visible **Page unavailable** screen now offers three actions: **Retry in RTE**, **Try Chromium** inside Ryftipe, or **Open directly** in a separate local browser tab.
+- Fallback preserves the failed website address. This is a deliberate user choice, not a silent engine switch.
+- Direct-open uses an explicit user action and accepts only HTTP(S) URLs, so a site blocked from Render's server can be checked via the user's own network.
+- Extended headless browser tests to verify retry, Chromium fallback and direct-open callbacks against an upstream HTTP 418 fixture.
+- No claim of bypassing an origin site's access controls: if a site is offline, rate-limiting, or refusing both RTE and Chromium from Render, Ryftipe cannot force access. As of November 6, 2026, AO3 itself is reporting a major maintenance outage.
+- Browser-standard cookie/authentication parity, site JavaScript compatibility and media playback remain ongoing work.
+
 ## v0.24.0 — RTE JavaScript bootstrapping and document-preservation capstone
 
 - Raised the per-script JavaScript budget from 160 KB to 900 KB, with a total client-side page script budget of 2.4 MB. Larger same-origin external classic scripts and static ES modules can be attempted inside the isolated RTE sandbox.

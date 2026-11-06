@@ -167,8 +167,8 @@ try{
   const display=document.createElement('canvas');display.style.cssText='width:100%;height:100%';
   container.append(display);document.body.append(container);
   const {createRTE}=await import('/rte.js');
-  const requests=[],errors=[];
-  const rte=createRTE(display,{onNavigate:url=>requests.push(url),onLocation(){},onError:e=>errors.push(e),javascriptEnabled:()=>false,documentLayoutEnabled:()=>true});
+  const requests=[],errors=[],fallbacks=[],direct=[];
+  const rte=createRTE(display,{onNavigate:url=>requests.push(url),onFallback:url=>fallbacks.push(url),onOpenDirect:url=>direct.push(url),onLocation(){},onError:e=>errors.push(e),javascriptEnabled:()=>false,documentLayoutEnabled:()=>true});
   const ok=await rte.navigate('https://refused.fixture.test/');
   const iframe=container.querySelector('#rte-document');
   await new Promise((resolve,reject)=>{
@@ -177,16 +177,20 @@ try{
   const title=iframe.contentDocument.querySelector('h1')?.textContent;
   const description=iframe.contentDocument.querySelector('.details')?.textContent;
   const retry=iframe.contentDocument.querySelector('[data-rte-retry]');
+  iframe.contentDocument.querySelector('[data-rte-fallback]').click();
+  iframe.contentDocument.querySelector('[data-rte-direct]').click();
   retry.click();
   await new Promise(resolve=>setTimeout(resolve,40));
-  const result={ok,title,description,errors,requests};
+  const result={ok,title,description,errors,requests,fallbacks,direct};
   rte.dispose();return result;
  });
  assert.equal(errorState.ok,false);
  assert.equal(errorState.title,'Page unavailable');
  assert.match(errorState.description,/HTTP 418/);
  assert.ok(errorState.requests.includes('https://refused.fixture.test/'));
- console.log('PASS: destination HTTP refusal gives a visible error page with working retry');
+ assert.deepEqual(errorState.fallbacks,['https://refused.fixture.test/'],'Chromium recovery must receive the original site URL');
+ assert.deepEqual(errorState.direct,['https://refused.fixture.test/'],'Direct-open recovery must receive the original site URL');
+ console.log('PASS: destination HTTP refusal supports retry, Chromium fallback and direct-open');
 }finally{
  await browser?.close();
  await new Promise(resolve=>server.close(resolve));
