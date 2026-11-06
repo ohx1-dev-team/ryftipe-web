@@ -25,6 +25,17 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.22.0 — Document layout architecture
+
+- RTE's default webpage display uses **a script-disabled sandboxed HTML document** styled by the host browser's standards-based CSS layout engine, rather than hand-painted Canvas boxes.
+- The backend provides bounded original HTML alongside CSS so the native HTML parser preserves semantic structures, SVG icons, and complex CSS layouts that the old simplified parser lost.
+- Untrusted page markup is sanitized before rendering: scripts, event-handler attributes, executable embed elements, meta refresh, and dangerous URL schemes are stripped. The frame has `sandbox="allow-same-origin"` **without** `allow-scripts`, and links/forms are routed through Ryftipe navigation.
+- Website JavaScript continues in the existing isolated opaque-origin runtime with restricted fetch/XHR/storage; dynamic script snapshots can update document rendering for marked dynamic sites.
+- The previous Canvas implementation remains available behind the **Standards-based document layout** flag at `ryftipe://flags`.
+- Added actual headless-browser layout tests for centered NoHello-style cards, CSS Grid/Flexbox, visual text, script blocking, and link navigation.
+- This is a pragmatic **host-assisted renderer**, not a newly independent Chromium-class CSS engine. It does not make YouTube's full app, adaptive video streaming or DRM work.
+- Site-specific browser verification is still necessary; automated fixtures cannot establish parity with all websites.
+
 ## v0.21.0 — RTE box geometry and content-sized flex layout
 
 - Introduces a shared box geometry layer for centered max-width containers, padding, margins and border-box widths.

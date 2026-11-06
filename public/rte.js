@@ -4,18 +4,22 @@ import {createLayoutCommands,READER_CSS} from '/rte-layout.js';
 import {getFormURL} from '/rte-forms.js';
 import {createMediaLayer} from '/rte-media.js';
 import {paintGradient} from '/rte-gradients.js';
+import {createDocumentRenderer} from '/rte-document.js';
 // RTE Canvas layout/paint pipeline: original HTML/CSS subset; never executes remote JavaScript.
 const BLOCK=new Set('html body main section article nav header footer div p h1 h2 h3 h4 h5 h6 ul ol li blockquote pre form figure figcaption table tr td th'.split(' '));
 const OMIT=new Set('head meta link title script style noscript template'.split(' '));
 const base={color:'#1f2937','font-size':'16px','font-weight':'normal','font-family':'Arial'};
 const defaults={body:{'background-color':'#fff'},a:{color:'#2052af'},h1:{'font-size':'32px','font-weight':'bold'},h2:{'font-size':'26px','font-weight':'bold'},h3:{'font-size':'21px','font-weight':'bold'},b:{'font-weight':'bold'},strong:{'font-weight':'bold'},small:{'font-size':'12px'},code:{'font-family':'monospace'}};
 function px(value,fallback=0,base=700){return cssLength(value,fallback,base,16,typeof window!=='undefined'?window.innerWidth:base);}
-export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompatibility,javascriptEnabled=()=>true,imagesEnabled=()=>true}){
+export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompatibility,javascriptEnabled=()=>true,imagesEnabled=()=>true,documentLayoutEnabled=()=>true}){
  const c=canvas.getContext('2d',{alpha:false});
  const mediaLayer=createMediaLayer(canvas,{onError:message=>onError?.(message)});
  let url='',doc=null,rules=[],cssSource='',scroll=0,commands=[],hits=[],height=0,active=false,generation=0,history=[],position=-1;
  let pageBackground='#fff',lastWidth=0,zoom=1,lastFindIndex=-1,stylesheetStats={};
  let scriptRuntime=null,scriptStatus='off',lastScriptMetrics={};
+ const docRenderer=createDocumentRenderer(canvas,{onNavigate,onError,onEvent:payload=>scriptRuntime?.event(payload)??false,onStats});
+ let currentMarkup='',initialDocument=true;
+ const documentMode=()=>Boolean(documentLayoutEnabled());
  const images=new Map();let repaintTimer=0,paintRaf=0,paintCostMs=0,averagePaintMs=0,paintCount=0;
  function style(n,parent,ancestors){return computeStyle(n,parent,rules,ancestors);}
  function font(s){const z=Math.min(52,Math.max(10,px(s['font-size'],16)));return {size:z,value:(s['font-weight']==='bold'||parseInt(s['font-weight'])>=600?'bold ':'')+z+'px '+(s['font-family']==='monospace'?'monospace':'Arial')};}
@@ -64,6 +68,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  }
  function layout(){
   if(!doc)return;
+  if(documentMode()){onStats?.({mode:'document',...docRenderer.stats});return;}
   const w=Math.max(320,Math.round(canvas.clientWidth/zoom));
   const readerMode=!cssSource.trim();
   if(w!==lastWidth){rules=parseCSS(readerMode?READER_CSS:cssSource,w,{colorScheme:window.matchMedia?.('(prefers-color-scheme: dark)').matches?'dark':'light'});lastWidth=w;}
@@ -94,20 +99,32 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
   averagePaintMs=paintCount===1?paintCostMs:averagePaintMs*.9+paintCostMs*.1;
   onStats?.({commands:commands.length,height,paintMs:paintCostMs,averagePaintMs,paintCount});
  }
- function show(){active=true;canvas.hidden=false;mediaLayer.show();layout();}
- function hide(){active=false;if(paintRaf)cancelAnimationFrame(paintRaf);paintRaf=0;canvas.hidden=true;mediaLayer.hide();scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='paused';}
- function dispose(){if(paintRaf)cancelAnimationFrame(paintRaf);paintRaf=0;scriptRuntime?.dispose();scriptRuntime=null;mediaLayer.dispose();active=false;}
+ function show(){active=true;if(documentMode()){canvas.hidden=true;mediaLayer.hide();docRenderer.show();}else{docRenderer.hide();canvas.hidden=false;mediaLayer.show();layout();}}
+ function hide(){active=false;if(paintRaf)cancelAnimationFrame(paintRaf);paintRaf=0;canvas.hidden=true;docRenderer.hide();mediaLayer.hide();scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='paused';}
+ function dispose(){if(paintRaf)cancelAnimationFrame(paintRaf);paintRaf=0;scriptRuntime?.dispose();scriptRuntime=null;docRenderer.dispose();mediaLayer.dispose();active=false;}
  async function navigate(target,{replace=false}={}){
   const token=++generation;onLocation?.({url:target,loading:true});
   try{const r=await fetch('/api/rte/document?url='+encodeURIComponent(target),{cache:'no-store'}),page=await r.json();if(token!==generation)return false;if(!r.ok)throw Error(page.error||'Page load failed');
-   url=page.url;doc=page.dom;stylesheetStats=page.stylesheets||{};mediaLayer.reset(url);cssSource=page.css||'';lastWidth=0;rules=parseCSS(cssSource.trim()?cssSource:READER_CSS,canvas.clientWidth,{colorScheme:window.matchMedia?.('(prefers-color-scheme: dark)').matches?'dark':'light'});scroll=0;lastFindIndex=-1;
+   url=page.url;doc=page.dom;stylesheetStats=page.stylesheets||{};mediaLayer.reset(url);
+   currentMarkup=page.markup||'';initialDocument=true;
+   if(documentMode()){
+    if(currentMarkup)docRenderer.renderHTML(currentMarkup,page.css||'',url);
+    else docRenderer.renderTree(doc,page.css||'',url);
+   }cssSource=page.css||'';lastWidth=0;rules=parseCSS(cssSource.trim()?cssSource:READER_CSS,canvas.clientWidth,{colorScheme:window.matchMedia?.('(prefers-color-scheme: dark)').matches?'dark':'light'});scroll=0;lastFindIndex=-1;
    lastScriptMetrics=scriptRuntime?.metrics||lastScriptMetrics;scriptRuntime?.dispose();scriptRuntime=null;scriptStatus='off';
    if(!replace){history=history.slice(0,position+1);history.push(url);position=history.length-1;}
    show();onLocation?.({url,title:page.title,loading:false});
    if(page.compatibility?.javascriptRequired)onCompatibility?.({...page.compatibility,url:page.url,attemptingScripts:Boolean(page.scripts?.length&&javascriptEnabled())});
    if(page.scripts?.length&&javascriptEnabled()){
     scriptRuntime=createScriptRuntime({
-     onSnapshot:(body,title)=>{if(token!==generation)return;doc=body;layout();if(title)onLocation?.({url,title,loading:false});},
+     onSnapshot:(body,title)=>{if(token!==generation)return;doc=body;
+      if(documentMode()){
+       // Preserve standards-parsed original HTML for static sites. The old
+       // hand-written HTML parser loses too much markup to replace it here.
+       // For script-driven sites snapshots can update the isolated renderer.
+       if(!currentMarkup||page.compatibility?.javascriptRequired){docRenderer.renderTree(body,cssSource,url);initialDocument=false;}
+      }else layout();
+      if(title)onLocation?.({url,title,loading:false});},
      onError:msg=>{if(token===generation)onError?.(msg);}
     });
     const running=scriptRuntime;scriptStatus='loading';
@@ -118,10 +135,12 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
  }
  function setZoom(value){
   zoom=Math.max(.5,Math.min(2,Math.round(Number(value)*10)/10||1));
-  if(doc){lastWidth=0;layout();}
+  if(documentMode())docRenderer.setZoom(zoom);
+  else if(doc){lastWidth=0;layout();}
   return zoom;
  }
  function findText(query,direction=1){
+  if(documentMode())return docRenderer.findText(query,direction);
   const term=String(query||'').trim().toLowerCase();if(!term){lastFindIndex=-1;paint();return{found:0,total:0};}
   const found=commands.map((cmd,i)=>({cmd,i})).filter(v=>v.cmd.kind==='text'&&v.cmd.text.toLowerCase().includes(term));
   if(!found.length)return{found:0,total:0};
@@ -177,5 +196,5 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
    try{onNavigate?.(getFormURL(url,v.form,v.submit));}catch(err){onError?.(err.message);}
   }else if(v.input)layout();
  });
- return {navigate,back,forward,reload,show,hide,dispose,resize:layout,setZoom,findText,get zoom(){return zoom;},get active(){return active;},get url(){return url;},get scriptStatus(){return scriptStatus;},get stats(){return {commands:commands.length,textCommands:commands.filter(c=>c.kind==='text').length,gradientCommands:commands.filter(c=>c.kind==='gradient').length,cssRules:rules.length,stylesheetStats,documentHeight:height,zoom,scriptStatus,paintMs:paintCostMs,averagePaintMs,paintCount,scriptMetrics:scriptRuntime?.metrics||lastScriptMetrics};}};
+ return {navigate,back,forward,reload,show,hide,dispose,resize:layout,setZoom,findText,get zoom(){return zoom;},get active(){return active;},get url(){return url;},get scriptStatus(){return scriptStatus;},get stats(){return {mode:documentMode()?'document':'canvas',...(documentMode()?docRenderer.stats:{}),commands:commands.length,textCommands:commands.filter(c=>c.kind==='text').length,gradientCommands:commands.filter(c=>c.kind==='gradient').length,cssRules:rules.length,stylesheetStats,documentHeight:documentMode()?docRenderer.stats.documentHeight:height,zoom,scriptStatus,paintMs:paintCostMs,averagePaintMs,paintCount,scriptMetrics:scriptRuntime?.metrics||lastScriptMetrics};}};
 }

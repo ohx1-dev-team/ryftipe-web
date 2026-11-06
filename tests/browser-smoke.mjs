@@ -6,11 +6,18 @@ import {dirname,resolve} from 'node:path';
 import {chromium} from 'playwright';
 // Browser-level sandbox integration smoke. Fixtures are local; no YouTube claim.
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..','public');
-const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js'],['/rte-modules.js','rte-modules.js'],['/rte-bridge.js','rte-bridge.js'],['/rte.js','rte.js'],['/rte-css.js','rte-css.js'],['/rte-layout.js','rte-layout.js'],['/rte-tracks.js','rte-tracks.js'],['/rte-forms.js','rte-forms.js'],['/rte-media.js','rte-media.js'],['/rte-gradients.js','rte-gradients.js'],['/rte-storage.js','rte-storage.js'],['/rte-controls.js','rte-controls.js'],['/rte-box.js','rte-box.js']]);
+const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js'],['/rte-modules.js','rte-modules.js'],['/rte-bridge.js','rte-bridge.js'],['/rte.js','rte.js'],['/rte-css.js','rte-css.js'],['/rte-layout.js','rte-layout.js'],['/rte-tracks.js','rte-tracks.js'],['/rte-forms.js','rte-forms.js'],['/rte-media.js','rte-media.js'],['/rte-gradients.js','rte-gradients.js'],['/rte-storage.js','rte-storage.js'],['/rte-controls.js','rte-controls.js'],['/rte-box.js','rte-box.js'],['/rte-document.js','rte-document.js']]);
 const server=http.createServer(async(req,res)=>{
  if(req.url?.startsWith('/api/rte/data?url=')&&new URL(req.url,'http://localhost').searchParams.get('url')==='https://example.org/test.json'){
   res.writeHead(200,{'Content-Type':'application/json'});
   res.end(JSON.stringify({url:'https://example.org/test.json',type:'application/json',body:'{"hello":"network-ok"}'}));return;
+ }
+ if(req.url?.startsWith('/api/rte/document?')&&new URL(req.url,'http://localhost').searchParams.get('url')==='https://nohello.org/'){
+  const markup='<html><head><title>NoHello</title></head><body><main class="shell"><h1>NoHello</h1><p class="intro">Skip the hi and silence</p><section class="guides"><a class="guide" href="/teams">Microsoft Teams</a><a class="guide" href="/slack">Slack</a><a class="guide" href="/discord">Discord</a></section><script>parent.__siteCodeExecuted=true</script></main></body></html>';
+  const css='body{font-family:Arial,sans-serif;background:#fafafa;color:#111}.shell{width:700px;max-width:calc(100% - 32px);margin:44px auto}.guides{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.guide{display:block;color:#123;border:1px solid #ddd;border-radius:8px;padding:12px;background:#fff}.intro{font-size:14px}';
+  res.writeHead(200,{'Content-Type':'application/json'});
+  res.end(JSON.stringify({url:'https://nohello.org/',title:'NoHello',markup,css,dom:{tag:'document',children:[]},scripts:[],stylesheets:{loaded:2,failed:0},compatibility:{javascriptRequired:false}}));
+  return;
  }
  if(req.url?.startsWith('/api/rte/document?')){
   res.writeHead(200,{'Content-Type':'application/json'});
@@ -29,7 +36,7 @@ const server=http.createServer(async(req,res)=>{
    'Content-Security-Policy':isSandbox?"default-src 'none'; script-src 'unsafe-inline' blob:; connect-src 'none'; img-src 'none'; style-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';":"default-src 'self'; connect-src 'self'; frame-src 'self'; script-src 'self';"});
   res.end(await readFile(resolve(root,file)));return;
  }
- res.writeHead(200,{'Content-Type':'text/html','Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; frame-src 'self'; connect-src 'self'"});
+ res.writeHead(200,{'Content-Type':'text/html','Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; frame-src 'self'; connect-src 'self'; style-src 'self' blob:; style-src-elem 'self' blob:; style-src-attr 'unsafe-inline'; img-src 'self' https: data:"});
  res.end('<!doctype html><html><body><p>RTE smoke test</p></body></html>');
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -108,6 +115,45 @@ try{
  assert.ok(Number.isFinite(painted.first.paintMs),'Canvas paint must be measured');
  assert.ok(painted.second.paintCount>painted.first.paintCount,'Wheel input should queue a new animation frame');
  console.log('PASS: RTE canvas paint, measured costs and scheduled wheel repaint',JSON.stringify(painted.second));
+ // The new default RTE rendering path must exercise native CSS layout,
+ // script removal, sandbox isolation, and internal navigation together.
+ const documentResult=await page.evaluate(async()=>{
+  const box=document.createElement('div');box.style.cssText='width:1000px;height:640px;position:relative';
+  const canvas=document.createElement('canvas');canvas.style.cssText='display:block;width:100%;height:100%';
+  box.append(canvas);document.body.append(box);
+  const {createRTE}=await import('/rte.js');
+  const routes=[];
+  const rte=createRTE(canvas,{onNavigate:url=>routes.push(url),onLocation(){},onError:message=>{throw new Error(message);},javascriptEnabled:()=>false,documentLayoutEnabled:()=>true});
+  const ok=await rte.navigate('https://nohello.org/');
+  const frame=box.querySelector('#rte-document');
+  await new Promise((resolve,reject)=>{
+   const since=Date.now();
+   const poll=()=>frame.contentDocument?.querySelector('.guides .guide')?resolve():Date.now()-since>4500?reject(new Error('Document layout timed out')):setTimeout(poll,60);
+   poll();
+  });
+  const doc=frame.contentDocument;
+  await Promise.race([doc.fonts.ready,new Promise(resolve=>setTimeout(resolve,800))]);
+  const shell=doc.querySelector('.shell'),guides=[...doc.querySelectorAll('.guide')];
+  const grid=frame.contentWindow.getComputedStyle(doc.querySelector('.guides')); // see corrected below
+  const result={ok,canvasHidden:canvas.hidden,frameVisible:!frame.hidden,heading:doc.querySelector('h1')?.textContent,cardCount:guides.length,shellX:shell?.getBoundingClientRect().x,shellWidth:shell?.getBoundingClientRect().width,columns:grid.gridTemplateColumns,positions:guides.map(x=>x.getBoundingClientRect().x),scriptPresent:doc.querySelectorAll('script').length,siteCodeExecuted:Boolean(window.__siteCodeExecuted),cssColor:frame.contentWindow.getComputedStyle(shell).color};
+  guides[1].click();
+  await new Promise(resolve=>setTimeout(resolve,40));
+  result.routes=routes;
+  rte.dispose();
+  return result;
+ });
+ console.log('RTE_NATIVE_LAYOUT '+JSON.stringify(documentResult));
+ assert.equal(documentResult.ok,true);
+ assert.equal(documentResult.canvasHidden,true);
+ assert.equal(documentResult.frameVisible,true);
+ assert.equal(documentResult.heading,'NoHello');
+ assert.equal(documentResult.cardCount,3);
+ assert.ok(documentResult.shellX>70&&documentResult.shellWidth<=710,'Centered native CSS layout');
+ assert.ok(documentResult.positions[2]>documentResult.positions[1]+80&&documentResult.positions[1]>documentResult.positions[0]+80,'Grid must lay out three columns');
+ assert.equal(documentResult.scriptPresent,0);
+ assert.equal(documentResult.siteCodeExecuted,false);
+ assert.ok(documentResult.routes.includes('https://nohello.org/slack'),'Links must route through Ryftipe');
+ console.log('PASS: native RTE document layout, complex CSS grid, script sandbox and link navigation');
 }finally{
  await browser?.close();
  await new Promise(resolve=>server.close(resolve));

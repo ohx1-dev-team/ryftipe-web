@@ -1,6 +1,7 @@
 // Ryftipe browser preferences and experimental features. No external dependencies.
 export const FLAG_DEFINITIONS=Object.freeze([
  {id:'rte-scripts',title:'RTE JavaScript',description:'Allow supported classic scripts to run in the isolated RTE runtime. Does not add modern browser APIs.',default:true,restart:false},
+ {id:'rte-document-layout',title:'Standards-based document layout',description:'Display RTE-fetched websites using the browser\'s native CSS box layout inside a script-disabled sandbox. Disable to use the experimental Canvas painter.',default:true,restart:false},
  {id:'rte-images',title:'Load images in RTE',description:'Fetch and paint images in the custom canvas renderer.',default:true,restart:false},
  {id:'compatibility-warnings',title:'Compatibility warnings',description:'Show nonblocking notices when RTE detects a website that may require unsupported features.',default:true,restart:false},
  {id:'performance-stats',title:'Performance statistics',description:'Display stream FPS and RTE drawing statistics in the status bar.',default:true,restart:false},

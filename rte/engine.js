@@ -57,5 +57,5 @@ export async function loadPage(raw){
  const heavySite=/^(?:www\.|m\.)?(?:youtube\.com|youtu\.be|google\.com|facebook\.com|instagram\.com|tiktok\.com|netflix\.com|discord\.com)$/.test(new URL(page.url).hostname);
  const dynamic=heavySite||(scriptCount>=15&&(appHints||scriptCount>=28));
  const scripts=scriptsFrom(html);
- return {url:page.url,title:entities(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,420000),stylesheets:stylesheetResult.diagnostics,scripts,engine:'RTE/0.18',compatibility:{javascriptRequired:dynamic,scriptCount,reason:dynamic?'This site depends on JavaScript and browser APIs that RTE does not implement.':'Experimental HTML/CSS support.'}};
+ return {url:page.url,markup:html.slice(0,1800000),title:entities(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,420000),stylesheets:stylesheetResult.diagnostics,scripts,engine:'RTE/0.18',compatibility:{javascriptRequired:dynamic,scriptCount,reason:dynamic?'This site depends on JavaScript and browser APIs that RTE does not implement.':'Experimental HTML/CSS support.'}};
 }
