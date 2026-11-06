@@ -101,7 +101,7 @@ try{
   const canvas=document.createElement('canvas');canvas.style.cssText='display:block;width:860px;height:500px';
   box.append(canvas);document.body.append(box);
   const {createRTE}=await import('/rte.js');
-  const rte=createRTE(canvas,{onNavigate(){},onLocation(){},onError(message){throw new Error(message);},onStats(){}});
+  const rte=createRTE(canvas,{onNavigate(){},onLocation(){},onError(message){throw new Error(message);},onStats(){},documentLayoutEnabled:()=>false});
   const ok=await rte.navigate('https://example.org/demo');
   const first={...rte.stats};
   canvas.dispatchEvent(new WheelEvent('wheel',{deltaY:100,cancelable:true}));
