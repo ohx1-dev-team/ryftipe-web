@@ -2,6 +2,7 @@ import {computeStyle,length as cssLength} from './rte-css.js';
 import {cssPixels,gapPixels,gridColumns,distributeTracks,trackPositions} from './rte-tracks.js';
 import {mediaSource,mediaCandidates} from './rte-media.js';
 import {controlGeometry} from './rte-controls.js';
+import {boxGeometry} from './rte-box.js';
 
 // RTE block/inline layout engine. Produces deterministic draw commands; canvas paints them.
 const BLOCK=new Set('html body main section article nav header footer div p h1 h2 h3 h4 h5 h6 ul ol li blockquote pre form figure figcaption table tr td th details summary address'.split(' '));
@@ -78,6 +79,18 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
   }
   return cursorY;
  }
+ function intrinsicWidth(node,style,available,depth=0){
+  if(depth>8)return 30;
+  if(typeof node.text==='string')return measure(ctx,node.text,fontStyle(style).value);
+  const children=node.children||[];
+  if(!children.length)return 24;
+  const tag=node.tag||'';
+  if(tag==='input'||tag==='button'||tag==='textarea'){
+   return Math.min(available,controlGeometry(node,style,available,(txt,size)=>measure(ctx,txt,size+'px Arial')).width);
+  }
+  const childWidths=children.slice(0,60).map(child=>intrinsicWidth(child,style,available,depth+1));
+  return Math.min(available,Math.max(24,...childWidths)+12);
+ }
  function paintNode(n,parent,x,y,w,ancestors=[],depth=0,link=null,nodeId=null,formNode=null){
   if(++count>12000||depth>65)return y;
   if(Object.hasOwn(n,'text'))return paintLines([{text:n.text,style:parent,href:link,nodeId}],x,y,w,parent['text-align']);
@@ -87,27 +100,23 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
   if(Number.isFinite(n.rteId))nodeId=n.rteId;
   if(n.tag==='form')formNode=n;
   const fs=fontStyle(s).size;
-  const margin=num(s.margin,0,w,fs),pad=num(s.padding,0,w,fs);
+  const margin=num(s.margin,0,w,fs);
   const mt=num(s['margin-top'],margin,w,fs),mb=num(s['margin-bottom'],margin,w,fs);
-  const pl=num(s['padding-left'],pad,w,fs),pr=num(s['padding-right'],pad,w,fs);
-  const pt=num(s['padding-top'],pad,w,fs),pb=num(s['padding-bottom'],pad,w,fs);
-  const ml=num(s['margin-left'],margin,w,fs),mr=num(s['margin-right'],margin,w,fs);
-  const maxWidth=s['max-width']?num(s['max-width'],w,w,fs):w;
-  const specified=s.width?num(s.width,w,w,fs):w;
-  const inside=Math.max(30,Math.min(w-pl-pr,Math.min(specified,maxWidth)-pl-pr));
-  const centered=s['margin-left']==='auto'&&s['margin-right']==='auto';
-  const left=x+(centered?Math.max(0,(w-inside-pl-pr)/2):ml);
+  const geometry=boxGeometry(s,w,fs);
+  const {pl,pr,pt,pb}=geometry;
+  const inside=geometry.content;
+  const left=x+geometry.offsetX;
   const boxY=y+mt;let cursorY=boxY+pt;
   const background=s['background-color']||null;
   const borderMatch=String(s.border||'').match(/([\d.]+)px\s+(?:solid|dashed)\s+([^\s]+)/);
   const borderWidth=Math.max(0,Math.min(12,num(s['border-width'],borderMatch?Number(borderMatch[1]):0,w,fs)));
   const borderColor=s['border-color']||borderMatch?.[2]||'#cbd5e1';
   const radius=Math.max(0,Math.min(30,num(s['border-radius'],0,w,fs)));
-  const bg=background&&background!=='transparent'?{kind:'rect',x:left,y:boxY,w:inside+pl+pr,h:0,color:background,radius}:null;
-  const border=borderWidth?{kind:'border',x:left,y:boxY,w:inside+pl+pr,h:0,color:borderColor,lineWidth:borderWidth,radius}:null;
+  const bg=background&&background!=='transparent'?{kind:'rect',x:left,y:boxY,w:geometry.outer,h:0,color:background,radius}:null;
+  const border=borderWidth?{kind:'border',x:left,y:boxY,w:geometry.outer,h:0,color:borderColor,lineWidth:borderWidth,radius}:null;
   const customControl=n.tag==='input'||n.tag==='textarea'||n.tag==='button';
   if(bg&&!customControl)commands.push(bg);
-  const gradient=s['background-gradient']?{kind:'gradient',x:left,y:boxY,w:inside+pl+pr,h:0,gradient:s['background-gradient']}:null;
+  const gradient=s['background-gradient']?{kind:'gradient',x:left,y:boxY,w:geometry.outer,h:0,gradient:s['background-gradient']}:null;
   if(gradient&&!customControl)commands.push(gradient);
   if(border&&!customControl)commands.push(border);
   if(n.tag==='br')return cursorY+fs*1.3;
@@ -154,15 +163,28 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
     const gap=gapPixels(s,inside,fs);
     const grid=s.display==='grid';
     const template=s['grid-template-columns']||'1fr 1fr';
-    const columns=grid?gridColumns(template,Math.max(50,inside-gap)):null;
+    const columns=grid?gridColumns(template,Math.max(50,inside-gap*Math.max(0,gridColumns(template,inside).length-1))):null;
     const childStyles=nonText.map(child=>computeStyle(child,s,rules,[...ancestors,n]));
-    const basis=childStyles.map(st=>cssPixels(st['flex-basis']||st.width,inside,fs));
-    const growth=childStyles.map(st=>Number(st['flex-grow']||0));
+    const basis=childStyles.map((st,i)=>{
+     const declared=cssPixels(st['flex-basis']||st.width,inside,fs);
+     return declared===null?intrinsicWidth(nonText[i],st,inside):declared;
+    });
+    const growth=childStyles.map(st=>Math.max(0,Number(st['flex-grow']||st.flex?.match(/^\s*(\d+(?:\.\d+)?)/)?.[1]||0)));
     const tracks=grid?columns:distributeTracks(nonText.length,inside,{display:'flex',gap,widths:basis,grow:growth});
     const offsets=trackPositions(tracks,gap);
+    if(!grid){
+     const occupied=tracks.reduce((a,b)=>a+b,0)+gap*Math.max(0,tracks.length-1);
+     const free=Math.max(0,inside-occupied);
+     const justify=s['justify-content']||'flex-start';
+     if(justify==='center')for(let i=0;i<offsets.length;i++)offsets[i]+=free/2;
+     else if(justify==='flex-end'||justify==='end')for(let i=0;i<offsets.length;i++)offsets[i]+=free;
+     else if(justify==='space-between'&&offsets.length>1)for(let i=0;i<offsets.length;i++)offsets[i]+=free*i/(offsets.length-1);
+     else if(justify==='space-around')for(let i=0;i<offsets.length;i++)offsets[i]+=free*(i+.5)/offsets.length;
+    }
     let rowTop=cursorY,rowBottom=cursorY;
+    const rowGap=Math.max(0,cssPixels(s['row-gap']||s.gap||'0',inside,fs)||0);
     for(let i=0;i<nonText.length;i++){
-     if(grid&&i>0&&i%tracks.length===0){rowTop=rowBottom;}
+     if(grid&&i>0&&i%tracks.length===0){rowTop=rowBottom+rowGap;rowBottom=rowTop;}
      const col=grid?i%tracks.length:i;
      const child=nonText[i],st=childStyles[i];
      const leftOffset=offsets[col];

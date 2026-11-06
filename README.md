@@ -25,6 +25,16 @@ If your current service uses Render's **Node** runtime rather than Docker, set:
 
 The package also has a `postinstall` hook to install the Chromium binary during normal Node builds. If Render reports missing Chromium shared libraries after that, deploy through the provided **Docker** blueprint instead, which includes Playwright's OS dependencies. Set `PLAYWRIGHT_BROWSERS_PATH` consistently if you override it, and don't enable `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on native Node builds.
 
+## v0.21.0 — RTE box geometry and content-sized flex layout
+
+- Introduces a shared box geometry layer for centered max-width containers, padding, margins and border-box widths.
+- Updates canvas box dimensions so backgrounds and content use a consistent coordinate convention.
+- Flex item sizing begins with intrinsic text/control width, not equal-width columns. Implements a subset of justify-content alignment and proportional flex-shrink.
+- Grid rows now respect row-gap, while column track widths account for column gaps.
+- Adds deterministic regression fixtures for NoHello-style flex navigation, centered containers, grid row gaps, border-box sizing, flex growth and shrinking.
+- This improves specific layout behavior but does not claim a fully standards-compliant layout engine or YouTube compatibility.
+- Existing full-site probes remain informational; browser-level and real visual verification are still required.
+
 ## v0.20.0 — Native RTE controls and layout regression
 
 - Replaces the previous fixed 360×36 generic form-control rendering with intrinsic text measurement, bounded CSS widths/heights, padding, colors and border radius.

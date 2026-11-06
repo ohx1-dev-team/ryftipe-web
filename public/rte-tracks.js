@@ -27,7 +27,7 @@ export function gridColumns(template,available){
  const leftover=Math.max(0,available-fixedTotal);
  return tracks.map((t,i)=>Math.max(25,fixed[i]??(fractionSum?leftover*fractions[i]/fractionSum:available/tracks.length)));
 }
-export function distributeTracks(count,available,{display='flex',gap=0,template='',widths=[],grow=[]}={}){
+export function distributeTracks(count,available,{display='flex',gap=0,template='',widths=[],grow=[],shrink=[]}={}){
  if(!Number.isInteger(count)||count<1)return [];
  const gaps=Math.max(0,count-1)*Math.max(0,gap);
  const usable=Math.max(0,available-gaps);
@@ -36,12 +36,21 @@ export function distributeTracks(count,available,{display='flex',gap=0,template=
   const tracks=gridColumns(template,usable);
   columns=Array.from({length:count},(_,i)=>tracks[i%tracks.length]);
  }else{
-  const fixed=widths.map(v=>typeof v==='number'&&Number.isFinite(v)?Math.max(0,v):null);
-  const sum=fixed.reduce((a,b)=>a+(b||0),0);
-  const unspecified=fixed.filter(v=>v===null).length;
-  const free=Math.max(0,usable-sum);
-  const growTotal=grow.reduce((a,b)=>a+Math.max(0,b||0),0);
-  columns=fixed.map((v,i)=>v===null?(unspecified?free/unspecified:0):Math.max(25,v+(growTotal?free*Math.max(0,grow[i]||0)/growTotal:0)));
+  const fixed=Array.from({length:count},(_,i)=>typeof widths[i]==='number'&&Number.isFinite(widths[i])?Math.max(0,widths[i]):null);
+  const total=fixed.reduce((a,b)=>a+(b||0),0),unspecified=fixed.filter(x=>x===null).length;
+  const remaining=Math.max(0,usable-total);
+  const baseline=fixed.map(v=>v===null?(unspecified?remaining/unspecified:0):v);
+  const baselineSum=baseline.reduce((a,b)=>a+b,0);
+  if(baselineSum>usable){
+   const weights=baseline.map((v,i)=>v*Math.max(0,Number(shrink[i]??1)));
+   const weightSum=weights.reduce((a,b)=>a+b,0);
+   const excess=baselineSum-usable;
+   columns=baseline.map((v,i)=>Math.max(10,v-(weightSum?excess*weights[i]/weightSum:0)));
+  }else{
+   const extra=Math.max(0,usable-baselineSum),growth=grow.map(x=>Math.max(0,Number(x)||0));
+   const totalGrow=growth.reduce((a,b)=>a+b,0);
+   columns=baseline.map((v,i)=>Math.max(10,v+(totalGrow?extra*(growth[i]||0)/totalGrow:0)));
+  }
  }
  return columns.map(x=>Math.max(25,x));
 }
