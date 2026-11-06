@@ -105,10 +105,11 @@ export function createLayoutCommands({document:root,rules,width,ctx,url,onImage,
   const radius=Math.max(0,Math.min(30,num(s['border-radius'],0,w,fs)));
   const bg=background&&background!=='transparent'?{kind:'rect',x:left,y:boxY,w:inside+pl+pr,h:0,color:background,radius}:null;
   const border=borderWidth?{kind:'border',x:left,y:boxY,w:inside+pl+pr,h:0,color:borderColor,lineWidth:borderWidth,radius}:null;
-  if(bg)commands.push(bg);
+  const customControl=n.tag==='input'||n.tag==='textarea'||n.tag==='button';
+  if(bg&&!customControl)commands.push(bg);
   const gradient=s['background-gradient']?{kind:'gradient',x:left,y:boxY,w:inside+pl+pr,h:0,gradient:s['background-gradient']}:null;
-  if(gradient)commands.push(gradient);
-  if(border)commands.push(border);
+  if(gradient&&!customControl)commands.push(gradient);
+  if(border&&!customControl)commands.push(border);
   if(n.tag==='br')return cursorY+fs*1.3;
   if(n.tag==='hr'){commands.push({kind:'rect',x:left,y:cursorY,w:inside,h:1,color:'#c6cfdd'});return cursorY+15+mb;}
   if(n.tag==='video'||n.tag==='audio'){
