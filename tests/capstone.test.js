@@ -28,15 +28,15 @@ test('GET form encodes values and excludes disabled or unchecked controls',()=>{
   field('q','a & b'),field('skip','x',{disabled:''}),field('notchecked','yes',{type:'checkbox'}),field('checked','yes',{type:'checkbox',checked:''}),submit
  ]};
  assert.deepEqual(formFields(form,submit),[['q','a & b'],['checked','yes'],['go','1']]);
- const url=new URL(getFormURL('https://example.org/page',form,submit));
- assert.equal(url.href.split('?')[0],'https://example.org/search');
+ const url=new URL(getFormURL('https://fixture.test/page',form,submit));
+ assert.equal(url.href.split('?')[0],'https://fixture.test/search');
  assert.equal(url.searchParams.get('q'),'a & b');
  assert.equal(url.searchParams.get('go'),'1');
  assert.equal(url.searchParams.get('skip'),null);
  assert.equal(url.searchParams.get('lang'),'en');
 });
 test('POST forms are rejected (not falsely marked implemented)',()=>{
- assert.throws(()=>getFormURL('https://example.org',{tag:'form',attrs:{method:'post'},children:[]}),/GET forms only/);
+ assert.throws(()=>getFormURL('https://fixture.test',{tag:'form',attrs:{method:'post'},children:[]}),/GET forms only/);
 });
 const context={font:'16px Arial',measureText(text){return {width:text.length*8};}};
 test('flex row draws adjacent children side-by-side',()=>{
@@ -44,7 +44,7 @@ test('flex row draws adjacent children side-by-side',()=>{
   {tag:'div',attrs:{},children:[{text:'First'}]},{tag:'div',attrs:{},children:[{text:'Second'}]}
  ]}]}]}]};
  const css='.bar{display:flex;gap:20px;width:600px} .bar div{background-color:#abcdef}';
- const result=createLayoutCommands({document:page,rules:parseCSS(css,900),width:900,ctx:context,url:'https://example.org'});
+ const result=createLayoutCommands({document:page,rules:parseCSS(css,900),width:900,ctx:context,url:'https://fixture.test'});
  const words=result.commands.filter(x=>x.kind==='text');
  assert.equal(words.length,2);
  assert.ok(words[1].x>words[0].x+20);
@@ -55,7 +55,7 @@ test('grid row draws cards in columns',()=>{
   {tag:'div',attrs:{},children:[{text:'Alpha'}]},{tag:'div',attrs:{},children:[{text:'Beta'}]}
  ]}]}]};
  const css='.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}';
- const result=createLayoutCommands({document:page,rules:parseCSS(css,900),width:900,ctx:context,url:'https://example.org'});
+ const result=createLayoutCommands({document:page,rules:parseCSS(css,900),width:900,ctx:context,url:'https://fixture.test'});
  const words=result.commands.filter(x=>x.kind==='text');
  assert.equal(words.length,2);
  assert.ok(words[1].x>words[0].x+300);

@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {allowedPageRequest,classifyScript,containsModuleImports,limitScriptEntries} from '../public/rte-platform.js';
 test('same-origin GET policy forbids cross-origin and non-GET requests',()=>{
- assert.equal(allowedPageRequest('https://example.org/path','/api/data'),'https://example.org/api/data');
- assert.equal(allowedPageRequest('https://example.org','https://other.org/path'),null);
- assert.equal(allowedPageRequest('https://example.org','/api','POST'),null);
- assert.equal(allowedPageRequest('https://example.org','file:///etc/passwd'),null);
- assert.equal(allowedPageRequest('https://example.org','https://user:pass@example.org/data'),null);
- assert.equal(allowedPageRequest('https://example.org','javascript:alert(1)'),null);
+ assert.equal(allowedPageRequest('https://fixture.test/path','/api/data'),'https://fixture.test/api/data');
+ assert.equal(allowedPageRequest('https://fixture.test','https://other.org/path'),null);
+ assert.equal(allowedPageRequest('https://fixture.test','/api','POST'),null);
+ assert.equal(allowedPageRequest('https://fixture.test','file:///etc/passwd'),null);
+ assert.equal(allowedPageRequest('https://fixture.test','https://user:pass@fixture.test/data'),null);
+ assert.equal(allowedPageRequest('https://fixture.test','javascript:alert(1)'),null);
 });
 test('classifies classic, module, and unsupported script types',()=>{
  assert.equal(classifyScript({type:'module'}),'module');

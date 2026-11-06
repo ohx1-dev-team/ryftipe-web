@@ -115,6 +115,8 @@ export function createDocumentRenderer(canvas,{onNavigate=()=>{},onEvent=async()
  }
  async function click(event){
   const el=event.target;
+  const retry=closest(el,'[data-rte-retry]');
+  if(retry){event.preventDefault();onNavigate(pageURL);return;}
   const link=closest(el,'a[href]');
   const button=closest(el,'[data-rte-id]');
   if(link)event.preventDefault();
@@ -162,11 +164,19 @@ export function createDocumentRenderer(canvas,{onNavigate=()=>{},onEvent=async()
   const found=frame.contentWindow?.find?.(term,false,direction<0,true,false,false,false);
   return {found:found?1:0,total};
  }
+ function showError(target,message){
+  const escaped=value=>String(value||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const site=(()=>{try{return new URL(target).hostname;}catch{return 'Website';}})();
+  const markup='<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Page unavailable</title></head><body><main class="error-page"><div class="mark">◈</div><h1>Page unavailable</h1><p class="site">'+escaped(site)+'</p><p class="details">'+escaped(String(message).slice(0,300))+'</p><p>The destination may be unreachable or may refuse server-side requests. Ryftipe cannot override a website\'s access restrictions.</p><button type="button" data-rte-retry>Try again</button></main></body></html>';
+  const css=':root{color-scheme:light dark}body{margin:0;padding:48px 24px;font:16px/1.6 system-ui,sans-serif;color:#dce5ff;background:#101a30}.error-page{max-width:600px;margin:8vh auto}.mark{font-size:32px;color:#89a7ed}h1{font-size:32px;margin:12px 0}.site{font-weight:600;color:#a9bce3}.details{overflow-wrap:anywhere;background:#273552;border-left:3px solid #90a9de;padding:14px;border-radius:6px}button{padding:12px 20px;margin-top:15px;border:0;border-radius:8px;background:#90adf3;color:#0b1731;cursor:pointer;font-weight:600}';
+  return applyDocument(markup,css,target);
+ }
  function dispose(){revoke();frame.remove();}
  return {
   frame,show,hide,dispose,setZoom,findText,
   renderHTML:(html,css,url)=>applyDocument(html,css,url),
   renderTree:(tree,css,url)=>applyDocument(renderTreeHTML(tree),css,url,{tree:true}),
+  showError,
   get visible(){return visible;},
   get loaded(){return loaded;},
   get stats(){return {...stats};}

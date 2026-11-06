@@ -4,7 +4,7 @@ import {parseHTML} from '../rte/engine.js';
 import {mediaSource,mediaCandidates,mediaAttributes,mediaRect} from '../public/rte-media.js';
 import {createLayoutCommands} from '../public/rte-layout.js';
 import {parseCSS} from '../public/rte-css.js';
-const src='https://media.example.org/sample.mp4';
+const src='https://media.fixture.test/sample.mp4';
 test('RTE parser retains HTML5 video, audio and source elements',()=>{
  const dom=parseHTML('<video controls width="640"><source src="/a.webm" type="video/webm"><source src="/a.mp4" type="video/mp4"></video><audio controls src="/sound.mp3"></audio>');
  assert.deepEqual(dom.children.map(n=>n.tag),['video','audio']);
@@ -12,12 +12,12 @@ test('RTE parser retains HTML5 video, audio and source elements',()=>{
  assert.equal(dom.children[0].children[0].tag,'source');
 });
 test('media source resolution and scheme filtering',()=>{
- const node={tag:'video',attrs:{controls:''},children:[{tag:'source',attrs:{src:'/a.webm',type:'video/webm'}},{tag:'source',attrs:{src:'https://cdn.example.org/a.mp4',type:'video/mp4'}}]};
- assert.equal(mediaSource(node,'https://example.org/watch'),'https://example.org/a.webm');
- assert.equal(mediaCandidates(node,'https://example.org/watch').length,2);
- assert.equal(mediaCandidates({tag:'video',attrs:{src:'javascript:alert(1)'}},'https://example.org').length,0);
- assert.equal(mediaSource({tag:'video',attrs:{src:'file:///etc/passwd'}},'https://example.org'),null);
- assert.equal(mediaSource({tag:'video',attrs:{src}},'https://example.org'),src);
+ const node={tag:'video',attrs:{controls:''},children:[{tag:'source',attrs:{src:'/a.webm',type:'video/webm'}},{tag:'source',attrs:{src:'https://cdn.fixture.test/a.mp4',type:'video/mp4'}}]};
+ assert.equal(mediaSource(node,'https://fixture.test/watch'),'https://fixture.test/a.webm');
+ assert.equal(mediaCandidates(node,'https://fixture.test/watch').length,2);
+ assert.equal(mediaCandidates({tag:'video',attrs:{src:'javascript:alert(1)'}},'https://fixture.test').length,0);
+ assert.equal(mediaSource({tag:'video',attrs:{src:'file:///etc/passwd'}},'https://fixture.test'),null);
+ assert.equal(mediaSource({tag:'video',attrs:{src}},'https://fixture.test'),src);
 });
 test('media attributes block unmuted autoplay',()=>{
  assert.equal(mediaAttributes({attrs:{autoplay:'',controls:''}}).autoplay,false);
@@ -32,9 +32,9 @@ test('media rectangles track zoom, scroll and visibility',()=>{
 test('RTE layout creates video media commands with meaningful dimensions',()=>{
  const dom=parseHTML('<main><video controls width="640" height="360" src="/video.mp4"></video><p>After video</p></main>');
  const ctx={font:'16px Arial',measureText(text){return{width:text.length*8};}};
- const rendered=createLayoutCommands({document:dom,rules:parseCSS('video{display:block}'),width:900,ctx,url:'https://example.org'});
+ const rendered=createLayoutCommands({document:dom,rules:parseCSS('video{display:block}'),width:900,ctx,url:'https://fixture.test'});
  const media=rendered.commands.find(c=>c.kind==='media');
- assert.ok(media);assert.equal(media.url,'https://example.org/video.mp4');
+ assert.ok(media);assert.equal(media.url,'https://fixture.test/video.mp4');
  assert.equal(media.w,640);assert.equal(media.h,360);
  assert.equal(media.attrs.controls,'');
  assert.ok(rendered.height>=360);

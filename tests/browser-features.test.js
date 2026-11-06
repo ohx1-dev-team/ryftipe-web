@@ -12,21 +12,21 @@ test('unknown and malformed settings are ignored',()=>{
 test('search engine routing uses encoded search terms',()=>{
  assert.equal(normalizeSearchEngine('missing'),'duckduckgo');
  assert.equal(normalizeNavigation('ryftipe://flags'),'ryftipe://flags');
- assert.equal(normalizeNavigation('example.org/path'),'https://example.org/path');
- assert.equal(normalizeNavigation('https://example.org'),'https://example.org');
+ assert.equal(normalizeNavigation('fixture.test/path'),'https://fixture.test/path');
+ assert.equal(normalizeNavigation('https://fixture.test'),'https://fixture.test');
  assert.equal(normalizeNavigation('hello world','brave'),searchURL('hello world','brave'));
  assert.match(searchURL('a & b','google'),/a%20%26%20b/);
  assert.equal(Object.keys(SEARCH_ENGINES).length,4);
 });
 test('per-site script permission choices',()=>{
- const saved=sanitizeSitePermissions({'example.org':{javascript:'block'},'youtube.com':{javascript:'allow'},'malformed':{javascript:'hack'}});
- assert.equal(getSiteJavascript(saved,'https://example.org',true),false);
+ const saved=sanitizeSitePermissions({'fixture.test':{javascript:'block'},'youtube.com':{javascript:'allow'},'malformed':{javascript:'hack'}});
+ assert.equal(getSiteJavascript(saved,'https://fixture.test',true),false);
  assert.equal(getSiteJavascript(saved,'https://youtube.com',false),true);
  assert.equal(getSiteJavascript(saved,'https://unknown.org',false),false);
  assert.equal(validSiteHost('ryftipe://flags'),'');
  assert.equal(saved.malformed,undefined);
 });
 test('workspace accepts bounded URL-only tab records',()=>{
- const w=sanitizeWorkspace([{id:1,url:'ryftipe://home',title:'Home'},{id:2,url:'javascript:alert(1)',title:'bad'},{id:3,url:'https://example.org',title:'Example'}]);
- assert.equal(w.length,3);assert.equal(w[1].url,'ryftipe://home');assert.equal(w[2].url,'https://example.org');
+ const w=sanitizeWorkspace([{id:1,url:'ryftipe://home',title:'Home'},{id:2,url:'javascript:alert(1)',title:'bad'},{id:3,url:'https://fixture.test',title:'Fixture'}]);
+ assert.equal(w.length,3);assert.equal(w[1].url,'ryftipe://home');assert.equal(w[2].url,'https://fixture.test');
 });

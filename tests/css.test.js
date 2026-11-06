@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseCSS,computeStyle,length,matchesSelector} from '../public/rte-css.js';
 
-test('example.org-style CSS paints body, centers content and styles links',()=>{
+test('fixture.test-style CSS paints body, centers content and styles links',()=>{
  const sheet='body{background-color:#f0f0f2;margin:0;padding:0}div{width:600px;margin:5em auto;padding:2em;background-color:#fdfdff}a:link,a:visited{color:#38488f;text-decoration:none}@media(max-width:700px){div{width:auto;margin:0 auto}}';
  const rules=parseCSS(sheet,1024);
  const body={tag:'body',attrs:{}},div={tag:'div',attrs:{}},a={tag:'a',attrs:{}};

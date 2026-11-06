@@ -8,9 +8,9 @@ import {chromium} from 'playwright';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..','public');
 const paths=new Map([['/sandbox.html','sandbox.html'],['/rte-runtime.js','rte-runtime.js'],['/rte-platform.js','rte-platform.js'],['/rte-modules.js','rte-modules.js'],['/rte-bridge.js','rte-bridge.js'],['/rte.js','rte.js'],['/rte-css.js','rte-css.js'],['/rte-layout.js','rte-layout.js'],['/rte-tracks.js','rte-tracks.js'],['/rte-forms.js','rte-forms.js'],['/rte-media.js','rte-media.js'],['/rte-gradients.js','rte-gradients.js'],['/rte-storage.js','rte-storage.js'],['/rte-controls.js','rte-controls.js'],['/rte-box.js','rte-box.js'],['/rte-document.js','rte-document.js']]);
 const server=http.createServer(async(req,res)=>{
- if(req.url?.startsWith('/api/rte/data?url=')&&new URL(req.url,'http://localhost').searchParams.get('url')==='https://example.org/test.json'){
+ if(req.url?.startsWith('/api/rte/data?url=')&&new URL(req.url,'http://localhost').searchParams.get('url')==='https://fixture.test/test.json'){
   res.writeHead(200,{'Content-Type':'application/json'});
-  res.end(JSON.stringify({url:'https://example.org/test.json',type:'application/json',body:'{"hello":"network-ok"}'}));return;
+  res.end(JSON.stringify({url:'https://fixture.test/test.json',type:'application/json',body:'{"hello":"network-ok"}'}));return;
  }
  if(req.url?.startsWith('/api/rte/document?')&&new URL(req.url,'http://localhost').searchParams.get('url')==='https://nohello.org/'){
   const markup='<html><head><title>NoHello</title></head><body><main class="shell"><h1>NoHello</h1><p class="intro">Skip the hi and silence</p><section class="guides"><a class="guide" href="/teams">Microsoft Teams</a><a class="guide" href="/slack">Slack</a><a class="guide" href="/discord">Discord</a></section><script>parent.__siteCodeExecuted=true</script></main></body></html>';
@@ -19,14 +19,18 @@ const server=http.createServer(async(req,res)=>{
   res.end(JSON.stringify({url:'https://nohello.org/',title:'NoHello',markup,css,dom:{tag:'document',children:[]},scripts:[],stylesheets:{loaded:2,failed:0},compatibility:{javascriptRequired:false}}));
   return;
  }
+ if(req.url?.startsWith('/api/rte/document?')&&new URL(req.url,'http://localhost').searchParams.get('url')==='https://refused.fixture.test/'){
+  res.writeHead(502,{'Content-Type':'application/json'});
+  res.end(JSON.stringify({error:'Website returned HTTP 418',upstreamStatus:418,site:'refused.fixture.test'}));return;
+ }
  if(req.url?.startsWith('/api/rte/document?')){
   res.writeHead(200,{'Content-Type':'application/json'});
-  res.end(JSON.stringify({url:'https://example.org/demo',title:'RTE Paint Fixture',engine:'RTE/test',css:'body{background-color:#f0f0f2}main{max-width:640px;margin:30px auto;padding:20px;background-color:#fff}h1{font-size:32px}',scripts:[],dom:{tag:'document',children:[{tag:'body',attrs:{},children:[{tag:'main',attrs:{},children:[{tag:'h1',attrs:{},children:[{text:'RTE Paint Fixture'}]},{tag:'p',attrs:{},children:[{text:'Canvas performance test.'}]}]}]}]}}));
+  res.end(JSON.stringify({url:'https://fixture.test/demo',title:'RTE Paint Fixture',engine:'RTE/test',css:'body{background-color:#f0f0f2}main{max-width:640px;margin:30px auto;padding:20px;background-color:#fff}h1{font-size:32px}',scripts:[],dom:{tag:'document',children:[{tag:'body',attrs:{},children:[{tag:'main',attrs:{},children:[{tag:'h1',attrs:{},children:[{text:'RTE Paint Fixture'}]},{tag:'p',attrs:{},children:[{text:'Canvas performance test.'}]}]}]}]}}));
   return;
  }
  if(req.url?.startsWith('/api/rte/script?')){
   const u=new URL(req.url,'http://localhost').searchParams.get('url');
-  if(u==='https://example.org/dep.js'){res.writeHead(200,{'Content-Type':'text/javascript'});res.end('export const dependency = "graph-ok";');return;}
+  if(u==='https://fixture.test/dep.js'){res.writeHead(200,{'Content-Type':'text/javascript'});res.end('export const dependency = "graph-ok";');return;}
   res.writeHead(404);res.end('Not found');return;
  }
  const file=paths.get(req.url);
@@ -53,7 +57,7 @@ try{
   window.__snapshots=[];window.__errors=[];
   const runtime=createScriptRuntime({onSnapshot:(body)=>window.__snapshots.push(JSON.stringify(body)),onError:(message)=>window.__errors.push(message)});
   window.__rte=runtime;
-  const data={url:'https://example.org',title:'RTE test',
+  const data={url:'https://fixture.test',title:'RTE test',
    dom:{tag:'document',children:[{tag:'html',children:[{tag:'body',children:[{tag:'div',attrs:{id:'status'},children:[{text:'Initial'}]},{tag:'button',attrs:{id:'interactive'},children:[{text:'Click'}]},{tag:'input',attrs:{id:'field',type:'text',value:'before'},children:[]}]}]}]},
    scripts:[
     {kind:'classic',inline:'document.getElementById("status").textContent="classic-ok";'},
@@ -86,8 +90,8 @@ try{
  assert.ok(outcome.snapshots.some(s=>s.includes('classic-ok')&&s.includes('module-ok')&&s.includes('network-ok')));
  assert.ok(outcome.snapshots.some(s=>s.includes('click-ok')&&s.includes('input-edited')),'DOM events and input updates must reach the RTE renderer');
  assert.ok(outcome.snapshots.some(s=>s.includes('stored-ok')&&s.includes('session-ok')&&s.includes('isolated-ok')),'Site storage must not expose host preferences');
- await page.waitForFunction(()=>Boolean(localStorage.getItem('ryftipe.site-storage:https://example.org')),{timeout:4000});
- const saved=await page.evaluate(()=>({host:localStorage.getItem('ryftipe.theme'),site:JSON.parse(localStorage.getItem('ryftipe.site-storage:https://example.org')||'{}')}));
+ await page.waitForFunction(()=>Boolean(localStorage.getItem('ryftipe.site-storage:https://fixture.test')),{timeout:4000});
+ const saved=await page.evaluate(()=>({host:localStorage.getItem('ryftipe.theme'),site:JSON.parse(localStorage.getItem('ryftipe.site-storage:https://fixture.test')||'{}')}));
  assert.equal(saved.host,'private-host-setting');assert.equal(saved.site['site-key'],'stored-ok');
  assert.ok(outcome.snapshots.some(s=>s.includes('xhr-network-ok')),'XHR must update DOM after fetching');
  assert.ok(outcome.snapshots.some(s=>s.includes('graph-ok')),'Static module import should modify the DOM');
@@ -102,7 +106,7 @@ try{
   box.append(canvas);document.body.append(box);
   const {createRTE}=await import('/rte.js');
   const rte=createRTE(canvas,{onNavigate(){},onLocation(){},onError(message){throw new Error(message);},onStats(){},documentLayoutEnabled:()=>false});
-  const ok=await rte.navigate('https://example.org/demo');
+  const ok=await rte.navigate('https://fixture.test/demo');
   const first={...rte.stats};
   canvas.dispatchEvent(new WheelEvent('wheel',{deltaY:100,cancelable:true}));
   await new Promise(resolve=>setTimeout(resolve,120));
@@ -154,6 +158,31 @@ try{
  assert.equal(documentResult.siteCodeExecuted,false);
  assert.ok(documentResult.routes.includes('https://nohello.org/slack'),'Links must route through Ryftipe');
  console.log('PASS: native RTE document layout, complex CSS grid, script sandbox and link navigation');
+ const errorState=await page.evaluate(async()=>{
+  const container=document.createElement('div');container.style.cssText='width:850px;height:500px;position:relative';
+  const display=document.createElement('canvas');display.style.cssText='width:100%;height:100%';
+  container.append(display);document.body.append(container);
+  const {createRTE}=await import('/rte.js');
+  const requests=[],errors=[];
+  const rte=createRTE(display,{onNavigate:url=>requests.push(url),onLocation(){},onError:e=>errors.push(e),javascriptEnabled:()=>false,documentLayoutEnabled:()=>true});
+  const ok=await rte.navigate('https://refused.fixture.test/');
+  const iframe=container.querySelector('#rte-document');
+  await new Promise((resolve,reject)=>{
+   let n=0;const poll=()=>iframe.contentDocument?.querySelector('[data-rte-retry]')?resolve():++n>100?reject(Error('RTE HTTP error screen did not load')):setTimeout(poll,40);poll();
+  });
+  const title=iframe.contentDocument.querySelector('h1')?.textContent;
+  const description=iframe.contentDocument.querySelector('.details')?.textContent;
+  const retry=iframe.contentDocument.querySelector('[data-rte-retry]');
+  retry.click();
+  await new Promise(resolve=>setTimeout(resolve,40));
+  const result={ok,title,description,errors,requests};
+  rte.dispose();return result;
+ });
+ assert.equal(errorState.ok,false);
+ assert.equal(errorState.title,'Page unavailable');
+ assert.match(errorState.description,/HTTP 418/);
+ assert.ok(errorState.requests.includes('https://refused.fixture.test/'));
+ console.log('PASS: destination HTTP refusal gives a visible error page with working retry');
 }finally{
  await browser?.close();
  await new Promise(resolve=>server.close(resolve));

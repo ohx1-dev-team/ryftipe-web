@@ -1,3 +1,11 @@
+## v0.23.0 — Clean startup and browser navigation capstone
+
+- Removed production example-site startup navigation. Ryftipe always opens **ryftipe://home**, and the streamed Chromium session starts at `about:blank` rather than silently loading a third-party domain.
+- Removed the example-site URL from the internal JavaScript self-test, and migrated all example-domain test fixtures to the clearly fake `fixture.test` domain.
+- Added a visible **Page unavailable** document with the requested URL's hostname, upstream HTTP error text, and a working **Try again** action, rather than showing stale content when the site refuses a request.
+- Added headless browser tests for upstream HTTP refusal / retry and regression coverage for homepage startup and absence of demo-site URLs.
+- The experimental RTE remains incomplete. In particular, YouTube streaming/JS behavior and websites refusing Render-hosted requests are **not** fixed by this release.
+
 # Ryftipe Web
 
 Ryftipe is an experimental browser interface with two website engines: the original Ryftipe Rendering Engine (RTE), and an optional Chromium fallback running remotely. RTE renders HTML/CSS via Canvas; Chromium sends JPEG frames via WebSocket. Neither engine is a complete replacement for a mainstream browser.

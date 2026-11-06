@@ -131,7 +131,7 @@ export function createRTE(canvas,{onNavigate,onLocation,onError,onStats,onCompat
     running.load(page).then(()=>{if(token===generation){scriptStatus='ready';lastScriptMetrics=running.metrics;}}).catch(e=>{if(token===generation){scriptStatus='failed';lastScriptMetrics=running.metrics;onError?.('RTE JavaScript: '+e.message);}});
    }
    return true;
-  }catch(e){if(token===generation)onError?.(e.message);return false;}
+  }catch(e){if(token===generation){if(documentMode())try{docRenderer.showError(target,e.message);show();}catch{}onError?.(e.message);onLocation?.({url:target,title:'Page unavailable',loading:false});}return false;}
  }
  function setZoom(value){
   zoom=Math.max(.5,Math.min(2,Math.round(Number(value)*10)/10||1));

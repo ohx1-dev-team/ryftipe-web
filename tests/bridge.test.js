@@ -15,7 +15,7 @@ test('RTE network protocol rejects mutation methods',()=>{
  assert.equal(normalizeRTEBridgeRequest('x'.repeat(5000),'GET'),null);
 });
 test('RTE location descriptors reject non-web schemes',()=>{
- assert.equal(normalizeRTELocation('https://example.org/watch?v=abc').pathname,'/watch');
+ assert.equal(normalizeRTELocation('https://fixture.test/watch?v=abc').pathname,'/watch');
  assert.equal(normalizeRTELocation('javascript:alert(1)'),null);
  assert.equal(normalizeRTELocation('file:///tmp/a'),null);
 });

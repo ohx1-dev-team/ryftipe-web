@@ -9,6 +9,6 @@ test('document renderer serializes supported HTML and keeps RTE node handles',()
  assert.doesNotMatch(markup,/<script/);
 });
 test('document renderer does not serialize inline event handlers',()=>{
- const markup=renderTreeHTML({tag:'document',children:[{tag:'a',attrs:{href:'https://example.org',onclick:'alert(1)'},children:[{text:'Go'}]}]});
+ const markup=renderTreeHTML({tag:'document',children:[{tag:'a',attrs:{href:'https://fixture.test',onclick:'alert(1)'},children:[{text:'Go'}]}]});
  assert.doesNotMatch(markup,/onclick=/);
 });

@@ -192,7 +192,8 @@ wss.on('connection', async ws => {
       }catch{framePending=false;}
     });
     await startCast();
-    await page.goto('https://example.com',{waitUntil:'domcontentloaded',timeout:20000}).catch(()=>{});
+    // A Chromium session starts on about:blank. The Ryftipe homepage stays the
+    // visible startup surface until the user explicitly navigates elsewhere.
     if(closed)return;
     say({type:'ready',quality,resolution,transport:'binary-cdp'});
     metricTimer=setInterval(()=>{
