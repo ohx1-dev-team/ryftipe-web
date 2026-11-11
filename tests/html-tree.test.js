@@ -14,7 +14,7 @@ test('parses quoted, unquoted, boolean and entity-decoded attributes',()=>{
  assert.equal(entities('&lt;&gt;&#65;&#x1F642;'),'<>A🙂');
 });
 
-test('keeps text whitespace and preformatted content',()=>{
+test('keeps text whitespace and preformatted content',()=>{\n const comparison=parseHTML('<p>2 < 3 and 4 > 1</p>');\n assert.equal(find(comparison,'p')[0].children[0].text,'2 < 3 and 4 > 1');
  const node=parseHTML('<pre> one\n  two\nthree </pre>');
  assert.equal(find(node,'pre')[0].children[0].text,' one\n  two\nthree ');
 });
