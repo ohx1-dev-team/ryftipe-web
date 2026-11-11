@@ -5,8 +5,8 @@ import {collectStylesheets} from './stylesheets.js';
 // RTE's bounded HTML tree builder. It produces a lightweight DOM snapshot; website
 // scripts execute only in the separate, unprivileged RTE sandbox.
 const VOID=new Set('area base br col embed hr img input link meta param source track wbr'.split(' '));
-const DROP_CONTENT=new Set(['script','style','noscript','template']);
-const DROP_ELEMENT=new Set(['iframe','object','embed','svg','canvas']);
+const DROP_CONTENT=new Set(['script','style','noscript','template','iframe','object','svg','canvas']);
+const DROP_ELEMENT=new Set(['embed']);
 const BLOCK_START=new Set('address article aside blockquote div dl fieldset footer form h1 h2 h3 h4 h5 h6 header hr main nav ol p pre section table ul'.split(' '));
 const MAX_HTML_CHARS=2_000_000,MAX_NODES=12_000,MAX_DEPTH=80,MAX_TEXT=8_000;
 export function entities(s){return String(s).replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);?/gi,(_,v)=>{if(v[0]==='#'){const n=v[1]?.toLowerCase()==='x'?parseInt(v.slice(2),16):parseInt(v.slice(1),10);return n>0&&n<=0x10ffff?String.fromCodePoint(n):'�';}return {amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '}[v.toLowerCase()]||'&'+v+';';});}
