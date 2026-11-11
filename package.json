@@ -1,6 +1,6 @@
 {
   "name": "ryftipe-web",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,11 +9,6 @@
     "test": "node --test",
     "test:youtube": "node tests/youtube-live.mjs"
   },
-  "engines": {
-    "node": ">=22"
-  },
-  "dependencies": {
-    "playwright": "1.56.1",
-    "ws": "^8.18.3"
-  }
+  "engines": { "node": ">=22" },
+  "dependencies": { "playwright": "1.56.1", "ws": "^8.18.3" }
 }
