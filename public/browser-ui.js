@@ -1,5 +1,6 @@
 import {clearSiteStorage} from '/rte-storage.js';
 import {FLAG_DEFINITIONS,SEARCH_ENGINES,defaultFlags,sanitizeFlags,normalizeNavigation,normalizeSearchEngine,sanitizeSitePermissions,getSiteJavascript,validSiteHost} from '/browser-features.js';
+import {parseBookmarksHTML,serializeBookmarksHTML} from '/bookmark-io.js';
 export function createBrowserUX({navigate,openInternal,getURL,notice,clearHistory,clearBookmarks,escapeHTML}){
  const read=(name,fallback)=>{try{return JSON.parse(localStorage.getItem(name)||'null')??fallback;}catch{return fallback;}};
  let flags=sanitizeFlags(read('ryftipe.flags',{}));
@@ -43,7 +44,6 @@ export function createBrowserUX({navigate,openInternal,getURL,notice,clearHistor
  }
  function bindPage(page){
   const root=document.getElementById('internal-content');if(!root)return;
-
   const search=root.querySelector('#flag-search');
   search?.addEventListener('input',()=>{const q=search.value.trim().toLowerCase();root.querySelectorAll('.flag-row').forEach(x=>x.hidden=!x.dataset.filter.includes(q));});
   root.querySelector('#flags-reset')?.addEventListener('click',()=>{flags=defaultFlags();persistFlags();openInternal('flags');notice('Flags reset to defaults');});
@@ -62,8 +62,36 @@ export function createBrowserUX({navigate,openInternal,getURL,notice,clearHistor
   if(siteInput){siteInput.value=sitePermissions[currentHost]?.javascript||'default';siteInput.addEventListener('change',()=>{if(!currentHost)return;if(siteInput.value==='default')delete sitePermissions[currentHost];else sitePermissions[currentHost]={javascript:siteInput.value};savePermissions();notice('Permission saved: reload website to apply');openInternal('site-settings');});}
   root.querySelectorAll('[data-reset-site]').forEach(button=>button.addEventListener('click',()=>{delete sitePermissions[button.dataset.resetSite];savePermissions();openInternal('site-settings');}));
  }
+ function installBookmarkTransfer(){
+  const bar=document.getElementById('bookmarks-bar');if(!bar||bar.querySelector('#bookmark-import'))return;
+  const input=document.createElement('input');input.type='file';input.accept='.html,.htm,text/html';input.hidden=true;input.id='bookmark-import-file';
+  const importButton=document.createElement('button');importButton.id='bookmark-import';importButton.textContent='Import';importButton.title='Import bookmarks from an HTML file';
+  const exportButton=document.createElement('button');exportButton.id='bookmark-export';exportButton.textContent='Export';exportButton.title='Export bookmarks as an HTML file';
+  importButton.onclick=()=>input.click();
+  input.addEventListener('change',async()=>{
+   const file=input.files?.[0];if(!file)return;
+   try{
+    if(file.size>5_000_000)throw Error('Bookmark file is larger than 5 MB');
+    const imported=parseBookmarksHTML(await file.text());
+    if(!imported.length)throw Error('No valid HTTP(S) bookmarks were found');
+    const existing=read('ryftipe.bookmarks',[]),merged=[...imported,...(Array.isArray(existing)?existing:[])],seen=new Set();
+    const result=merged.filter(item=>item&&typeof item.url==='string'&&!seen.has(item.url)&&seen.add(item.url)).slice(0,200);
+    localStorage.setItem('ryftipe.bookmarks',JSON.stringify(result));
+    notice('Imported '+(result.length-(Array.isArray(existing)?existing.length:0))+' bookmark(s). Reload the bookmarks page to refresh the list.');
+   }catch(error){notice('Bookmark import failed: '+error.message,8000);}
+   finally{input.value='';}
+  });
+  exportButton.onclick=()=>{
+   const entries=read('ryftipe.bookmarks',[]),html=serializeBookmarksHTML(entries);
+   const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));
+   const link=document.createElement('a');link.href=url;link.download='ryftipe-bookmarks.html';link.click();
+   setTimeout(()=>URL.revokeObjectURL(url),1000);
+   notice('Bookmark export prepared');
+  };
+  bar.append(input,importButton,exportButton);
+ }
  function start(){
-  applyFlags();renderTabs();
+  applyFlags();renderTabs();installBookmarkTransfer();
   document.getElementById('new-tab').onclick=newTab;
   const toggle=document.getElementById('menu-toggle'),menu=document.getElementById('browser-menu');
   toggle.onclick=()=>{menu.hidden=!menu.hidden;};
