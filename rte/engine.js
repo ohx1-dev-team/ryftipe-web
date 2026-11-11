@@ -73,7 +73,7 @@ export function parseHTML(input){
   const closing=token.match(/^<\/\s*([a-zA-Z][\w:-]*)/);
   if(closing){popThrough(stack,closing[1].toLowerCase());continue;}
   const opening=token.match(/^<\s*([a-zA-Z][\w:-]*)/);
-  if(!opening){appendText(stack.at(-1),'<');continue;}
+  if(!opening){appendText(stack.at(-1),entities(token));continue;}
   const tag=opening[1].toLowerCase();
   if(DROP_CONTENT.has(tag)){
    const close=new RegExp('</\\s*'+tag+'\\s*>','ig');close.lastIndex=cursor;
