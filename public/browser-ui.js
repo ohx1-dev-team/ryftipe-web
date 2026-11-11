@@ -74,10 +74,10 @@ export function createBrowserUX({navigate,openInternal,getURL,notice,clearHistor
     if(file.size>5_000_000)throw Error('Bookmark file is larger than 5 MB');
     const imported=parseBookmarksHTML(await file.text());
     if(!imported.length)throw Error('No valid HTTP(S) bookmarks were found');
-    const existing=read('ryftipe.bookmarks',[]),merged=[...imported,...(Array.isArray(existing)?existing:[])],seen=new Set();
-    const result=merged.filter(item=>item&&typeof item.url==='string'&&!seen.has(item.url)&&seen.add(item.url)).slice(0,200);
+    const existing=read('ryftipe.bookmarks',[]);
+    const result=parseBookmarksHTML(serializeBookmarksHTML([...imported,...(Array.isArray(existing)?existing:[])]));
     localStorage.setItem('ryftipe.bookmarks',JSON.stringify(result));
-    notice('Imported '+(result.length-(Array.isArray(existing)?existing.length:0))+' bookmark(s). Reload the bookmarks page to refresh the list.');
+    notice('Imported '+imported.length+' valid bookmark(s). Reload the bookmarks page to refresh the list.');
    }catch(error){notice('Bookmark import failed: '+error.message,8000);}
    finally{input.value='';}
   });
