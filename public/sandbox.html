@@ -31,6 +31,14 @@ const siteStorage=storageShim(siteValues,true),sessionStorageShim=storageShim(se
 Object.defineProperty(window,'localStorage',{configurable:true,get(){return siteStorage;}});
 Object.defineProperty(window,'sessionStorage',{configurable:true,get(){return sessionStorageShim;}});
 const CAP=12000;
+function resolveRTERequestURL(raw,base){
+ try{
+  const target=new URL(String(raw),base);
+  if(!['https:','http:'].includes(target.protocol)||target.username||target.password||target.href.length>2000)return null;
+  return target.href;
+ }catch{return null;}
+}
+
 const observer=new MutationObserver(()=>{if(active&&!scheduled){scheduled=true;setTimeout(()=>{scheduled=false;snapshot();},110);}});
 let observedShadows=new WeakSet();
 function watchShadow(root){if(!root||observedShadows.has(root))return;observedShadows.add(root);observer.observe(root,{subtree:true,childList:true,attributes:true,characterData:true});}
@@ -83,16 +91,15 @@ window.fetch=(input,options={})=>{
  const method=String(options?.method||'GET').toUpperCase();
  if(method!=='GET')return Promise.reject(new TypeError('RTE network bridge currently supports GET only'));
  const raw=typeof input==='string'?input:input?.url;
- let absolute;
- try{absolute=new URL(String(raw),pageURL);if(absolute.origin!==new URL(pageURL).origin)throw Error('Cross-origin request');}
- catch{return Promise.reject(new TypeError('RTE only allows same-origin requests'));}
+ const absolute=resolveRTERequestURL(raw,pageURL);
+  if(!absolute)return Promise.reject(new TypeError('RTE only allows public HTTP(S) GET requests'));
  return new Promise((resolve,reject)=>{
   const id=++fetchSequence;
   pendingFetch.set(id,result=>{
    if(result.error){reject(new TypeError(result.error));return;}
    resolve(new Response(result.body,{status:result.status||200,headers:{'Content-Type':result.contentType||'text/plain'}}));
   });
-  parent.postMessage({type:'rte-fetch',token,id,url:absolute.href,method},'*');
+  parent.postMessage({type:'rte-fetch',token,id,url:absolute,method},'*');
   setTimeout(()=>{if(pendingFetch.has(id)){pendingFetch.delete(id);reject(new TypeError('RTE request timed out'));}},13000);
  });
 };
