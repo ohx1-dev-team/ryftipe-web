@@ -40,7 +40,7 @@ function pack(node,depth=0,limit={count:0}){
  if(depth>40||limit.count++>CAP)return null;
  if(node.nodeType===3)return {text:node.textContent.slice(0,4000)};
  if(node.nodeType!==1)return null;
- if(['script','style','iframe','object','embed','svg','canvas'].includes(node.localName))return null;
+ if(['script','style','iframe','object','embed'].includes(node.localName))return null;
  if(!node.__rteId)node.__rteId=++nextID;
  const attrs={};for(const a of [...node.attributes].slice(0,30))if(!a.name.startsWith('on'))attrs[a.name]=a.value.slice(0,500);
  const children=[...node.childNodes];
@@ -59,16 +59,19 @@ function mount(tree,title,url,storage){
  pendingFetch.clear();
  active=false;observer.disconnect();observedShadows=new WeakSet();document.body.replaceChildren();
  document.title=String(title||'RTE').slice(0,120);nextID=0;
- function make(node,depth=0){
+ function make(node,depth=0,namespace=''){
   if(depth>40)return document.createTextNode('');
   if(Object.hasOwn(node,'text'))return document.createTextNode(String(node.text).slice(0,4000));
   const tag=/^[a-z][a-z0-9-]*$/.test(node.tag||'')?node.tag:'span';
-  const el=document.createElement(tag);el.__rteId=++nextID;
+  const svgNamespace='http://www.w3.org/2000/svg';
+  const ns=namespace|| (tag==='svg'?svgNamespace:'');
+  const svgTag=tag==='foreignobject'?'foreignObject':tag;
+  const el=ns?document.createElementNS(ns,svgTag):document.createElement(tag);el.__rteId=++nextID;
   for(const [k,v] of Object.entries(node.attrs||{})){
    if(!/^[a-z][a-z0-9:_-]*$/i.test(k)||k.startsWith('on')||k==='srcdoc')continue;
    try{el.setAttribute(k,String(v).slice(0,500));}catch{}
   }
-  for(const ch of (node.children||[]).slice(0,500))el.appendChild(make(ch,depth+1));
+  for(const ch of (node.children||[]).slice(0,500))el.appendChild(make(ch,depth+1,tag==='foreignobject'?'':ns));
   return el;
  }
  function add(node){if(!node)return;if(node.tag==='document'||node.tag==='html'||node.tag==='body'){for(const ch of node.children||[])add(ch);}else if(node.tag!=='head')document.body.appendChild(make(node));}

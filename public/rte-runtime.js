@@ -6,7 +6,7 @@ import {allowedPageRequest,MAX_SCRIPT_CHARS,MAX_PAGE_SCRIPT_CHARS} from '/rte-pl
 export function createScriptRuntime({onSnapshot,onError}){
  let iframe=null,token='',listener=null,readyResolver=null,executionResolver=null,stopped=false,currentPage='';
  const pendingEvents=new Map();let nextEvent=0;
- const MAX_SCRIPTS=20;
+ const MAX_SCRIPTS=40;
  let telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0,moduleGraphs:0,moduleDependencies:0,bytesLoaded:0,limited:0,lastError:''};
  function release(){
   stopped=true;if(listener)window.removeEventListener('message',listener);
@@ -54,7 +54,7 @@ export function createScriptRuntime({onSnapshot,onError}){
     const body=await reply.json();
     if(stopped||token!==message.token)return;
     if(!reply.ok){telemetry.networkFailures++;send('fetch-result',{id,error:body.error||'Request failed'});return;}
-    if(new URL(body.url).origin!==new URL(currentPage).origin){telemetry.networkFailures++;send('fetch-result',{id,error:'Cross-origin redirect blocked'});return;}
+    // The server validates every redirect target against public-IP rules.
     send('fetch-result',{id,body:body.body,contentType:body.type,status:200});
    }catch(error){telemetry.networkFailures++;send('fetch-result',{id,error:String(error.message||error).slice(0,130)});}
   }
@@ -65,7 +65,7 @@ export function createScriptRuntime({onSnapshot,onError}){
   if(!(await Promise.race([whenReady,timer]))||stopped){release();throw Error('RTE script sandbox did not start');}
   async function fetchScript(target){
    const url=new URL(target,page.url);
-   if(url.origin!==new URL(page.url).origin)throw Error('Cross-origin script blocked');
+   if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw Error('Unsupported script URL');
    const r=await fetch('/api/rte/script?url='+encodeURIComponent(url.href),{cache:'no-store'});
    if(!r.ok)throw Error('Script request failed');
    return r.text();

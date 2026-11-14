@@ -67,7 +67,7 @@ export function sanitizeRTEHTML(raw,pageURL){
 }
 export function renderTreeHTML(tree){
  const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const tags=new Set('html head body main section article nav header footer aside div p h1 h2 h3 h4 h5 h6 ul ol li blockquote pre code span strong em b i small a button form input textarea select option label table thead tbody tr td th img picture source video audio svg path title br hr canvas details summary figure figcaption time address'.split(' '));
+ const tags=new Set('html head body main section article nav header footer aside div p h1 h2 h3 h4 h5 h6 ul ol li blockquote pre code span strong em b i small a button form input textarea select option label table thead tbody tr td th img picture source video audio svg g defs symbol use path rect circle ellipse line polyline polygon text tspan title desc lineargradient radialgradient stop clippath mask pattern marker foreignobject br hr canvas details summary figure figcaption time address'.split(' '));
  const voids=new Set(['input','img','source','br','hr']);
  let count=0;
  const visit=(node,depth=0)=>{

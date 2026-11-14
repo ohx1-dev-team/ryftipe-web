@@ -43,11 +43,23 @@ test('handles comments, malformed closing tags and RCDATA elements',()=>{
  assert.equal(find(node,'title')[0].children[0].text,'Title & more');
 });
 
+test('preserves SVG trees and SVG attribute casing for dynamic DOM snapshots',()=>{
+ const node=parseHTML('<svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet"><path stroke-width="2" d="M0 0h24"/><circle cx="12" cy="12" r="4"/></svg><canvas id="chart"></canvas>');
+ const svg=find(node,'svg')[0];
+ assert.equal(svg.attrs.viewBox,'0 0 24 24');
+ assert.equal(svg.attrs.preserveAspectRatio,'xMidYMid meet');
+ assert.equal(find(node,'path')[0].attrs.strokeWidth,'2');
+ assert.equal(find(node,'circle').length,1);
+ assert.equal(find(node,'canvas').length,1);
+});
+
 test('drops embedded browsing contexts and caps pathological input',()=>{
  const node=parseHTML('<main><iframe><p>bad</p></iframe><object>bad</object><svg><text>bad</text></svg><p>ok</p></main>');
  assert.equal(find(node,'iframe').length,0);
  assert.equal(find(node,'object').length,0);
- assert.equal(find(node,'svg').length,0);
+ assert.equal(find(node,'svg').length,1);
+ assert.equal(find(node,'text').length,1);
+ assert.equal(find(node,'canvas').length,0);
  assert.equal(find(node,'p').length,1);
  assert.ok(parseHTML('<p>'+('x'.repeat(2_100_000))+'</p>'));
 });

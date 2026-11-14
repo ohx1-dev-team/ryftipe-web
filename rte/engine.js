@@ -5,8 +5,9 @@ import {collectStylesheets} from './stylesheets.js';
 // RTE's bounded HTML tree builder. It produces a lightweight DOM snapshot; website
 // scripts execute only in the separate, unprivileged RTE sandbox.
 const VOID=new Set('area base br col embed hr img input link meta param source track wbr'.split(' '));
-const DROP_CONTENT=new Set(['script','style','noscript','template','iframe','object','svg','canvas']);
+const DROP_CONTENT=new Set(['script','style','noscript','template','iframe','object']);
 const DROP_ELEMENT=new Set(['embed']);
+const SVG_ATTR_NAMES={viewbox:'viewBox',preserveaspectratio:'preserveAspectRatio',gradientunits:'gradientUnits',gradienttransform:'gradientTransform',patternunits:'patternUnits',patterncontentunits:'patternContentUnits',clippathunits:'clipPathUnits',markerwidth:'markerWidth',markerheight:'markerHeight',refx:'refX',refy:'refY',strokewidth:'strokeWidth',strokelinecap:'strokeLinecap',strokelinejoin:'strokeLinejoin',fillrule:'fillRule',cliprule:'clipRule',fontfamily:'fontFamily',fontsize:'fontSize',textanchor:'textAnchor'};
 const BLOCK_START=new Set('address article aside blockquote div dl fieldset footer form h1 h2 h3 h4 h5 h6 header hr main nav ol p pre section table ul'.split(' '));
 const MAX_HTML_CHARS=2_000_000,MAX_NODES=12_000,MAX_DEPTH=80,MAX_TEXT=8_000;
 export function entities(s){return String(s).replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);?/gi,(_,v)=>{if(v[0]==='#'){const n=v[1]?.toLowerCase()==='x'?parseInt(v.slice(2),16):parseInt(v.slice(1),10);return n>0&&n<=0x10ffff?String.fromCodePoint(n):'�';}return {amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '}[v.toLowerCase()]||'&'+v+';';});}
@@ -14,7 +15,8 @@ export function attrs(s){
  const out=Object.create(null);
  for(const m of String(s).matchAll(/([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>\x60]+)))?/g)){
   const name=m[1].toLowerCase();
-  if(!Object.hasOwn(out,name))out[name]=entities(m[2]??m[3]??m[4]??'');
+  const normalized=SVG_ATTR_NAMES[name]||name;
+  if(!Object.hasOwn(out,normalized))out[normalized]=entities(m[2]??m[3]??m[4]??'');
   if(Object.keys(out).length>=80)break;
  }
  return out;
@@ -117,7 +119,7 @@ export function scriptsFrom(html){
   .map(m=>({attributes:attrs(m[1]),inline:m[2]}))
   .map(s=>({kind:classifyScript(s.attributes),src:s.attributes.src,inline:s.inline}))
   .filter(s=>s.kind&&(s.src||s.inline?.trim()));
- return limitScriptEntries(entries,20);
+ return limitScriptEntries(entries,40);
 }
 export async function loadPage(raw){
  const page=await fetchResource(raw,'html'),html=page.body.toString('utf8'),styles=stylesFrom(html);
@@ -131,5 +133,5 @@ export async function loadPage(raw){
  const dynamic=heavySite||(scriptCount>=15&&(appHints||scriptCount>=28));
  const scripts=scriptsFrom(html);
  const scriptStats={declared:scriptCount,selected:scripts.length,omitted:Math.max(0,scriptCount-scripts.length)};
- return {url:page.url,markup:html.slice(0,1800000),title:entities(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,420000),stylesheets:stylesheetResult.diagnostics,scripts,scriptStats,engine:'RTE/0.19',compatibility:{javascriptRequired:dynamic,scriptCount,reason:dynamic?'This site depends on JavaScript and browser APIs that RTE does not implement.':'Experimental HTML/CSS support.'}};
+ return {url:page.url,markup:html.slice(0,1800000),title:entities(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||new URL(page.url).hostname).slice(0,100),dom:parseHTML(html),css:css.slice(0,420000),stylesheets:stylesheetResult.diagnostics,scripts,scriptStats,engine:'RTE/0.20',compatibility:{javascriptRequired:dynamic,scriptCount,reason:dynamic?'This site depends on JavaScript and browser APIs that RTE does not implement.':'Experimental HTML/CSS support.'}};
 }
