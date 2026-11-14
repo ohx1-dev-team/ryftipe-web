@@ -119,7 +119,7 @@ export function scriptsFrom(html){
   .map(m=>({attributes:attrs(m[1]),inline:m[2]}))
   .map(s=>({kind:classifyScript(s.attributes),src:s.attributes.src,inline:s.inline}))
   .filter(s=>s.kind&&(s.src||s.inline?.trim()));
- return limitScriptEntries(entries,40);
+ return limitScriptEntries(entries,80);
 }
 export async function loadPage(raw){
  const page=await fetchResource(raw,'html'),html=page.body.toString('utf8'),styles=stylesFrom(html);

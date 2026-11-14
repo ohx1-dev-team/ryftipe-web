@@ -32,6 +32,6 @@ test('bounded module graph fetches cross-origin dependencies and enforces its bu
 });
 
 test('script entry selection allows a larger bounded application bundle',()=>{
- const entries=Array.from({length:60},(_,i)=>({kind:'classic',src:'https://cdn.example.net/'+i+'.js'}));
- assert.equal(limitScriptEntries(entries).length,40);
+ const entries=Array.from({length:100},(_,i)=>({kind:'classic',src:'https://cdn.example.net/'+i+'.js'}));
+ assert.equal(limitScriptEntries(entries).length,80);
 });

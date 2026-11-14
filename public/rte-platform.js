@@ -24,7 +24,7 @@ export function containsModuleImports(source){
  // Conservative: reject module syntax requiring module resolution, including dynamic import.
  return /(^|[\n;]\s*)import\s*(?:[\w*{]|['"])|(^|[\n;]\s*)export\s+.*\s+from\s*['"]|\bimport\s*\(/m.test(text);
 }
-export function limitScriptEntries(list,max=40){
+export function limitScriptEntries(list,max=80){
  if(!Array.isArray(list))return [];
  return list.filter(x=>x&&['classic','module'].includes(x.kind)&&(typeof x.src==='string'||typeof x.inline==='string'))
  .filter(x=>!x.inline||x.inline.length<=MAX_SCRIPT_CHARS)

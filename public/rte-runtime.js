@@ -6,7 +6,7 @@ import {allowedPageRequest,MAX_SCRIPT_CHARS,MAX_PAGE_SCRIPT_CHARS} from '/rte-pl
 export function createScriptRuntime({onSnapshot,onError}){
  let iframe=null,token='',listener=null,readyResolver=null,executionResolver=null,stopped=false,currentPage='';
  const pendingEvents=new Map();let nextEvent=0;
- const MAX_SCRIPTS=40;
+ const MAX_SCRIPTS=80;
  let telemetry={executed:0,failed:0,skipped:0,networkRequests:0,networkFailures:0,moduleGraphs:0,moduleDependencies:0,bytesLoaded:0,limited:0,lastError:''};
  function release(){
   stopped=true;if(listener)window.removeEventListener('message',listener);

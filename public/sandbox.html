@@ -30,7 +30,7 @@ function storageShim(values,persistent){
 const siteStorage=storageShim(siteValues,true),sessionStorageShim=storageShim(sessionValues,false);
 Object.defineProperty(window,'localStorage',{configurable:true,get(){return siteStorage;}});
 Object.defineProperty(window,'sessionStorage',{configurable:true,get(){return sessionStorageShim;}});
-const CAP=1800;
+const CAP=12000;
 const observer=new MutationObserver(()=>{if(active&&!scheduled){scheduled=true;setTimeout(()=>{scheduled=false;snapshot();},110);}});
 let observedShadows=new WeakSet();
 function watchShadow(root){if(!root||observedShadows.has(root))return;observedShadows.add(root);observer.observe(root,{subtree:true,childList:true,attributes:true,characterData:true});}
