@@ -1,3 +1,11 @@
+## v0.31.0 — Accountless local-first browser capstone
+
+- Removes the optional shared-password login screen and its `/api/auth`, `/api/login`, and `/api/logout` endpoints. Ryftipe opens directly to its homepage.
+- Removes password-token checks from RTE resources, Chromium diagnostics, and the WebSocket stream. The same-origin WebSocket Origin check and session limit remain.
+- Confirms the product direction: no user accounts, profiles, registration, database, or cloud sync.
+- Keeps preferences, bookmarks, and history in browser-local storage. These values stay in the user's browser across normal application deployments at the same origin, but are not shared across devices and can be lost if browser storage is cleared or the origin changes.
+- Updates the visible version and About diagnostics to 0.31.0.
+
 ## v0.25.0 — Website-access recovery capstone
 
 - RTE's visible **Page unavailable** screen now offers three actions: **Retry in RTE**, **Try Chromium** inside Ryftipe, or **Open directly** in a separate local browser tab.
@@ -37,10 +45,10 @@ npx playwright install --with-deps chromium
 npm start
 ```
 
-Open http://localhost:3000. No password is required by default. To enable private mode, set `RYFTIPE_PASSWORD` to a password of at least 12 characters before starting.
+Open http://localhost:3000. Ryftipe has no accounts, login screen, password gate, database, or cloud sync. Browser preferences, bookmarks, and history are stored locally in the browser that is using Ryftipe.
 
 ## Deploy with Render
-Create a Blueprint from `render.yaml`. The service starts without a password by default. For a private deployment, optionally configure `RYFTIPE_PASSWORD` with a unique strong password. This project includes a Playwright Chromium Docker image. Use a paid instance with sufficient memory for Chromium. Render needs to permit WebSockets.
+Create a Blueprint from `render.yaml`. The service is accountless and has no application-level login or password gate. Anyone who can reach the deployment can use it, subject to the configured session limit. This project includes a Playwright Chromium Docker image. Use an instance with sufficient memory for Chromium. Render needs to permit WebSockets.
 
 ### Existing Render Node.js service
 
@@ -274,11 +282,11 @@ Preferences, history and bookmarks are stored in localStorage **on this device o
 ## Initial features (v0.1.2)
 - Remote Chromium with screenshot streaming.
 - URL navigation, back/forward, reload, mouse click and scroll, keyboard and viewport resize.
-- Optional password-protected login (disabled by default) and isolated ephemeral browser sessions.
+- Accountless public access and isolated ephemeral browser sessions.
 - Restricted HTTP(S) navigation to public addresses.
 
 ## Security note
-Public mode means anyone with the deployment URL can start a resource-intensive browser session (up to `MAX_CLIENTS` simultaneous sessions). Use private mode when possible, and add deployment/network-level protection before making a production service available to others. Do not trust the application-layer URL checks as a complete SSRF defense.
+Ryftipe has no application-level authentication. Anyone with the deployment URL can start a resource-intensive browser session (up to `MAX_CLIENTS` simultaneous sessions). Do not expose a public deployment to untrusted users without placing it behind an appropriate access-control layer and enforcing network-level protections. Do not trust the application-layer URL checks as a complete SSRF defense.
 
 ## Known limitations
 This is a prototype, **not** a hardened publicly hosted browsing service. Application-level DNS checks are not a sufficient SSRF defense; enforce network-level denial of internal/private addresses before exposing it to untrusted users. Navigation to private network resources is denied on a best-effort basis. Frame delivery is CDP JPEG screencast with variable FPS and no audio. No clipboard, uploads, downloads, browser tabs, DRM or persistence. Some websites may decline to run under automated remote browsers. It does not guarantee bypass of network filtering systems.

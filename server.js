@@ -2,7 +2,6 @@ import {handleRTE} from './rte/handler.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -10,14 +9,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { chromium } from 'playwright';
 
 const PORT = Number(process.env.PORT || 3000);
-// Optional private-mode password. Unset means no login prompt.
-const PASSWORD = process.env.RYFTIPE_PASSWORD || '';
-if (PASSWORD && PASSWORD.length < 12) {
-  console.error('If RYFTIPE_PASSWORD is set, it must contain at least 12 characters.');
-  process.exit(1);
-}
 const root = path.dirname(fileURLToPath(import.meta.url));
-const activeTokens = new Map();
 const MAX_CLIENTS = Math.max(1, Number(process.env.MAX_CLIENTS || 2));
 let browser;
 let browserPromise;
@@ -53,48 +45,14 @@ async function isPublicURL(target) {
     return results.length > 0 && results.every(item => isPublicIP(item.address));
   } catch { return false; }
 }
-function tokenFor(req) {
-  const cookie = (req.headers.cookie || '').split(';').map(c => c.trim()).find(c => c.startsWith('ryftipe='));
-  return cookie ? cookie.substring('ryftipe='.length) : '';
-}
-function authorized(req) {
-  if (!PASSWORD) return true;
-  const token = tokenFor(req);
-  return Boolean(token && activeTokens.get(token) > Date.now());
-}
 function json(res, status, result) {
   res.writeHead(status, { 'Content-Type':'application/json', 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff' });
   res.end(JSON.stringify(result));
 }
 const server = http.createServer(async (req, res) => {
   if (req.url === '/health') return json(res, 200, { ok:true });
-  if (req.url === '/api/auth') return json(res, 200, { authenticated:authorized(req), loginRequired:Boolean(PASSWORD) });
-  if (req.url === '/api/login' && req.method === 'POST') {
-    if (!PASSWORD) return json(res, 200, { ok:true });
-    let body = '';
-    for await (const chunk of req) {
-      body += chunk.toString();
-      if (body.length > 4096) return json(res, 413, { error:'Request too large' });
-    }
-    let candidate = '';
-    try { candidate = String(JSON.parse(body).password || ''); }
-    catch { return json(res, 400, { error:'Invalid JSON' }); }
-    const a = Buffer.from(candidate), b = Buffer.from(PASSWORD);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a,b)) return json(res,401,{ error:'Invalid password' });
-    const token = crypto.randomBytes(32).toString('hex');
-    activeTokens.set(token, Date.now() + 43200000);
-    res.setHeader('Set-Cookie', 'ryftipe=' + token + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200' + (process.env.NODE_ENV === 'production' ? '; Secure' : ''));
-    return json(res,200,{ok:true});
-  }
-  if (req.url === '/api/logout' && req.method === 'POST') {
-    if (!PASSWORD) return json(res,200,{ok:true});
-    activeTokens.delete(tokenFor(req));
-    res.setHeader('Set-Cookie','ryftipe=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');
-    return json(res,200,{ok:true});
-  }
   if (req.url === '/api/diagnostics' && req.method === 'GET') {
     try{await ensureBrowser();}catch{return json(res,503,{error:'Chromium fallback unavailable'});}
-    if (!authorized(req)) return json(res,401,{error:'Unauthorized'});
     try {
       const session=await browser.newBrowserCDPSession();
       try {
@@ -116,7 +74,7 @@ const server = http.createServer(async (req, res) => {
       } finally { await session.detach().catch(()=>{}); }
     } catch(err) { return json(res,503,{error:'GPU diagnostics unavailable',detail:String(err.message).slice(0,180)}); }
   }
-  if(req.url?.startsWith('/api/rte/')){if(!authorized(req))return json(res,401,{error:'Unauthorized'});return handleRTE(req,res);}
+  if(req.url?.startsWith('/api/rte/'))return handleRTE(req,res);
   const resources = { '/':'index.html','/app.js':'app.js','/rte.js':'rte.js','/rte-css.js':'rte-css.js','/rte-layout.js':'rte-layout.js','/rte-tracks.js':'rte-tracks.js','/rte-forms.js':'rte-forms.js','/rte-media.js':'rte-media.js','/rte-platform.js':'rte-platform.js','/rte-modules.js':'rte-modules.js','/rte-bridge.js':'rte-bridge.js','/rte-gradients.js':'rte-gradients.js','/rte-controls.js':'rte-controls.js','/rte-box.js':'rte-box.js','/rte-document.js':'rte-document.js','/rte-snapshot.js':'rte-snapshot.js','/rte-storage.js':'rte-storage.js','/browser-features.js':'browser-features.js','/browser-ui.js':'browser-ui.js','/bookmark-io.js':'bookmark-io.js','/rte-runtime.js':'rte-runtime.js','/sandbox.html':'sandbox.html','/style.css':'style.css' };
   if (req.method !== 'GET' || !resources[req.url]) return json(res,404,{error:'Not found'});
   const filename = resources[req.url];
@@ -130,7 +88,7 @@ const wss = new WebSocketServer({ noServer:true });
 server.on('upgrade', async (req,socket,head) => {
   let validOrigin = false;
   try { validOrigin = new URL(req.headers.origin).host === req.headers.host; } catch {}
-  if (req.url !== '/stream' || !validOrigin || !authorized(req) || wss.clients.size >= MAX_CLIENTS) {
+  if (req.url !== '/stream' || !validOrigin || wss.clients.size >= MAX_CLIENTS) {
     socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
     socket.destroy();
     return;
